@@ -1,4 +1,5 @@
 export default function Home() {
+  console.log("¿URL detectada?:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "SÍ" : "NO");
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-700 to-indigo-900 text-white flex items-center justify-center px-6">
       <div className="max-w-5xl w-full grid md:grid-cols-2 gap-10 items-center">
