@@ -75,7 +75,7 @@ export default function LoginPage() {
             </div>
             <h2 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.5em] mb-2">Acceso Protegido</h2>
             <h1 className="text-4xl font-black text-slate-900 tracking-tighter italic uppercase">
-              BODEGA<span className="text-blue-600">.SYS</span>
+              SYS<span className="text-blue-600">.PAYAYA</span>
             </h1>
           </div>
 
