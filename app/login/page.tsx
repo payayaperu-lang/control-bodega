@@ -128,17 +128,7 @@ export default function LoginPage() {
             )}
           </button>
 
-          {/* Información de acceso rápido */}
-          <div className="mt-8 grid grid-cols-2 gap-4">
-            <div className="text-center p-3 rounded-2xl bg-slate-50 border border-slate-100">
-              <p className="text-[9px] font-black text-blue-600 uppercase tracking-tighter">Admin</p>
-              <p className="text-[10px] font-bold text-slate-600">1234</p>
-            </div>
-            <div className="text-center p-3 rounded-2xl bg-slate-50 border border-slate-100">
-              <p className="text-[9px] font-black text-purple-600 uppercase tracking-tighter">Cajero</p>
-              <p className="text-[10px] font-bold text-slate-600">5678</p>
-            </div>
-          </div>
+          
         </form>
 
         <p className="text-center mt-8 text-slate-400 text-[10px] font-black uppercase tracking-widest">
