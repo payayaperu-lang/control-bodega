@@ -132,7 +132,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center mt-8 text-slate-400 text-[10px] font-black uppercase tracking-widest">
-          Sistema de Control Payaya &copy; 2026
+          Sistema de Control Payaya &copy; 2026 
         </p>
       </div>
     </main>
