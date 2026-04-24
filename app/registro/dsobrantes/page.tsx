@@ -28,7 +28,7 @@ export default function DineroSobrantePage() {
   const btnConfirmarRef = useRef<HTMLButtonElement>(null);
 
   const [nuevo, setNuevo] = useState({ cajero: "", dinero: "", tipo: "1" });
-  const listaCajeros = ["Katherine", "Maria", "Enma", "Axel"];
+  const listaCajeros = ["Katherine", "Maria", "Enma", "Nicol", "Axel"];
 
   const esSemana = fechaDesde === lunesActual && fechaHasta === domingoActual;
   const esMes = fechaDesde === primerDiaMes && fechaHasta === ultimoDiaMes;
