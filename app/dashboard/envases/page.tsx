@@ -70,23 +70,34 @@ export default function EnvasesPage() {
     if (filtroEstado === "devueltos") return registros.filter(r => r.devuelto === 1);
     return registros;
   }, [registros, filtroEstado]);
+  
+  const formatHora = (fechaStr: string) => {
+  const fecha = new Date(fechaStr);
+  // Usamos el locale de Perú para asegurar la hora correcta
+  return fecha.toLocaleTimeString('es-PE', { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: true 
+  }).toUpperCase();
+};
 
   async function guardarRegistro() {
-    if (!registroValido) return;
-    const { error } = await supabase.from("envases").insert([{
-      ...nuevo,
-      cliente: nuevo.cliente.toUpperCase(),
-      fecha: new Date().toISOString().split("T")[0],
-      cantidad: parseInt(nuevo.cantidad),
-      dinero: parseFloat(nuevo.dinero),
-      devuelto: 0 
-    }]);
-    if (!error) {
-      setNuevo({ cliente: "", envase: "", cantidad: "", dinero: "", pago: "Efectivo" });
-      fetchEnvases();
-      mostrarAviso("Registro guardado con éxito");
-    }
+  if (!registroValido) return;
+  const { error } = await supabase.from("envases").insert([{
+    ...nuevo,
+    cliente: nuevo.cliente.toUpperCase(),
+    // Cambiamos esto para que guarde fecha y hora completa
+    fecha: new Date().toISOString(), // Esto guarda: 2024-05-02T14:30:00Z 
+    cantidad: parseInt(nuevo.cantidad),
+    dinero: parseFloat(nuevo.dinero),
+    devuelto: 0 
+  }]);
+  if (!error) {
+    setNuevo({ cliente: "", envase: "", cantidad: "", dinero: "", pago: "Efectivo" });
+    fetchEnvases();
+    mostrarAviso("Registro guardado con éxito");
   }
+}
 
   async function actualizarRegistro() {
     const { error } = await supabase.from("envases").update({
@@ -121,11 +132,21 @@ export default function EnvasesPage() {
   }
 
   const formatFechaCorta = (fechaStr: string) => {
-    const fecha = new Date(fechaStr + "T00:00:00");
-    const dia = fecha.getDate();
-    const mes = fecha.toLocaleString('es-ES', { month: 'short' }).replace('.', '').toUpperCase();
-    return { dia, mes };
-  };
+  // Creamos el objeto fecha (ahora sí soporta el formato completo)
+  const fecha = new Date(fechaStr);
+  
+  // Verificamos si la fecha es válida para evitar el NaN
+  if (isNaN(fecha.getTime())) {
+    return { dia: '00', mes: '---' };
+  }
+
+  const dia = fecha.getDate();
+  const mes = fecha.toLocaleString('es-ES', { month: 'short' })
+                   .replace('.', '')
+                   .toUpperCase();
+                   
+  return { dia, mes };
+};
 
   const pendientes = registros.filter(r => r.devuelto === 0).length;
   const entregados = registros.filter(r => r.devuelto === 1).length;
@@ -280,10 +301,20 @@ export default function EnvasesPage() {
                   return (
                     <tr key={item.id} className="hover:bg-blue-50/40 transition-colors">
                       <td className="px-6 py-4">
-                        <div className="flex flex-col items-center justify-center bg-slate-100 w-12 h-12 rounded-xl border border-slate-200">
-                          <span className="text-lg font-black text-slate-900 leading-none">{dia}</span>
-                          <span className="text-[8px] font-black text-blue-600 leading-none mt-1">{mes}</span>
+                        <td className="px-6 py-4">
+                        <div className="flex flex-col items-center gap-1">
+                          {/* CUADRITO DE FECHA (Tu diseño original) */}
+                          <div className="flex flex-col items-center justify-center bg-slate-100 w-12 h-12 rounded-xl border border-slate-200">
+                            <span className="text-lg font-black text-slate-900 leading-none">{dia}</span>
+                            <span className="text-[8px] font-black text-blue-600 leading-none mt-1">{mes}</span>
+                          </div>
+                          
+                          {/* LA HORA JUSTO DEBAJO */}
+                          <span className="text-[9px] font-black text-slate-400 tracking-tighter">
+                            {formatHora(item.fecha)}
+                          </span>
                         </div>
+                      </td>
                       </td>
                       <td className="px-4 py-4">
                         <div className="font-black text-slate-900 uppercase text-sm tracking-tight">{item.cliente}</div>
