@@ -5,11 +5,12 @@ import { supabase } from "../../lib/supabase";
 
 export default function ProductoSobrantePage() {
   const [productos, setProductos] = useState<any[]>([]);
+  const [montoDineSobrante, setMontoDineSobrante] = useState(0);
+  const [montoFaltantes, setMontoFaltantes] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false); 
   
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
-  // 1. Añadimos 'cantidad' al estado inicial
   const [nuevo, setNuevo] = useState({ producto: "", cantidad: "1", precio: "" });
 
   const [editandoId, setEditandoId] = useState<number | null>(null);
@@ -48,29 +49,37 @@ export default function ProductoSobrantePage() {
     else { setFechaDesde(lunesActual); setFechaHasta(domingoActual); }
   };
 
-  // 2. Cálculo del total considerando cantidad
-  const totalDinero = useMemo(() => {
+  const totalProdSobrante = useMemo(() => {
     return productos.reduce((acc, item) => acc + ((parseFloat(item.precio) || 0) * (item.cantidad || 1)), 0);
   }, [productos]);
 
-  useEffect(() => { fetchSobrantes(); }, [fechaDesde, fechaHasta]);
+  const totalSobranteGeneral = totalProdSobrante + montoDineSobrante;
+  const balanceFinal = totalSobranteGeneral - montoFaltantes;
 
-  async function fetchSobrantes() {
+  useEffect(() => { fetchTodo(); }, [fechaDesde, fechaHasta]);
+
+  async function fetchTodo() {
     setLoading(true);
-    let query = supabase.from("prod_sobrante").select("*").order("id", { ascending: false });
+    let qProdSob = supabase.from("prod_sobrante").select("*").order("id", { ascending: false });
+    let qDineSob = supabase.from("dine_sobrante").select("dinero");
+    let qFaltantes = supabase.from("prod_faltantes").select("cantidad, precio");
+
     if (fechaDesde && fechaHasta) {
-      query = query.gte("fecha", fechaDesde).lte("fecha", fechaHasta);
+      qProdSob = qProdSob.gte("fecha", fechaDesde).lte("fecha", fechaHasta);
+      qDineSob = qDineSob.gte("fecha", fechaDesde).lte("fecha", fechaHasta);
+      qFaltantes = qFaltantes.gte("fecha", fechaDesde).lte("fecha", fechaHasta);
     }
-    const { data } = await query;
-    setProductos(data || []);
+
+    const [resProd, resDine, resFalt] = await Promise.all([qProdSob, qDineSob, qFaltantes]);
+
+    setProductos(resProd.data || []);
+    setMontoDineSobrante(resDine.data?.reduce((acc, c) => acc + (parseFloat(c.dinero) || 0), 0) || 0);
+    setMontoFaltantes(resFalt.data?.reduce((acc, c) => acc + (Number(c.cantidad) * Number(c.precio) || 0), 0) || 0);
     setLoading(false);
   }
 
   async function guardarSobrante() {
-    // 3. Validación de cantidad en el guardado
     if (!nuevo.producto || !nuevo.precio || parseInt(nuevo.cantidad) <= 0 || isSaving) return;
-    if (parseFloat(nuevo.precio) <= 0) return alert("⚠️ El precio debe ser mayor a cero");
-    
     setIsSaving(true);
     const { error } = await supabase.from("prod_sobrante").insert([{
       producto: nuevo.producto.toUpperCase(),
@@ -81,7 +90,7 @@ export default function ProductoSobrantePage() {
 
     if (!error) {
       setNuevo({ producto: "", cantidad: "1", precio: "" });
-      await fetchSobrantes();
+      await fetchTodo();
       setShowSuccessPopup(true);
       setTimeout(() => setShowSuccessPopup(false), 2500);
     }
@@ -94,9 +103,7 @@ export default function ProductoSobrantePage() {
   };
 
   async function actualizarProducto(id: number) {
-    if (parseFloat(editForm.precio) <= 0 || editForm.cantidad <= 0) return alert("⚠️ Valores deben ser mayores a cero");
     if (isSaving) return;
-
     setIsSaving(true);
     const { error } = await supabase
       .from("prod_sobrante")
@@ -109,15 +116,15 @@ export default function ProductoSobrantePage() {
 
     if (!error) {
       setEditandoId(null);
-      await fetchSobrantes();
+      await fetchTodo();
     }
     setIsSaving(false);
   }
 
   async function eliminarProducto(id: number) {
-    if (!confirm("¿Eliminar este registro de producto sobrante?")) return;
+    if (!confirm("¿Eliminar este registro?")) return;
     const { error } = await supabase.from("prod_sobrante").delete().eq("id", id);
-    if (!error) await fetchSobrantes();
+    if (!error) await fetchTodo();
   }
 
   return (
@@ -137,21 +144,21 @@ export default function ProductoSobrantePage() {
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-6 pt-4">
         <div>
-          <h2 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.4em] mb-1 ml-1">Control de Inventario</h2>
+          <h2 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.4em] mb-1 ml-1">Bodega Payaya</h2>
           <h1 className="text-5xl font-black text-slate-900 tracking-tighter italic uppercase leading-none">
-            SOBRANTE<span className="text-indigo-600">.PROD</span>
+            INVENTARIO<span className="text-indigo-600">.SOB</span>
           </h1>
         </div>
 
         <div className="flex items-center gap-4 bg-white p-3 rounded-[2.5rem] shadow-xl border border-slate-100">
-            <div className="flex gap-3 px-4 border-r border-slate-100">
+            <div className="flex gap-3 px-4 border-r border-slate-100 text-slate-900 font-bold">
               <div className="flex flex-col">
                 <span className="text-[8px] font-black text-slate-400 uppercase italic mb-1">Desde</span>
-                <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className="text-xs font-black outline-none bg-transparent text-slate-900" />
+                <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className="text-xs font-black outline-none bg-transparent" />
               </div>
               <div className="flex flex-col">
                 <span className="text-[8px] font-black text-slate-400 uppercase italic mb-1">Hasta</span>
-                <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className="text-xs font-black outline-none bg-transparent text-slate-900" />
+                <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className="text-xs font-black outline-none bg-transparent" />
               </div>
             </div>
 
@@ -165,155 +172,169 @@ export default function ProductoSobrantePage() {
         </div>
       </div>
 
+      {/* TARJETAS DE RESUMEN - Estilo Limpio (Sin tantos colores) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 italic">Total Sobrantes</span>
+          <div className="text-4xl font-black text-slate-900 italic tracking-tighter">S/ {totalSobranteGeneral.toFixed(2)}</div>
+          <p className="text-[9px] font-bold text-slate-400 uppercase mt-2 tracking-widest">Prod Sobrante + Dine Sobrante</p>
+        </div>
+
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 italic">Pérdida Prod.</span>
+          <div className="text-4xl font-black text-slate-900 italic tracking-tighter">S/ {montoFaltantes.toFixed(2)}</div>
+          <p className="text-[9px] font-bold text-rose-500 uppercase mt-2 tracking-widest italic">Total en faltantes</p>
+        </div>
+
+        <div className="bg-slate-900 p-8 rounded-[2.5rem] shadow-2xl border-indigo-500">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 italic">Balance Operativo</span>
+          <div className="text-4xl font-black text-white italic tracking-tighter">S/ {balanceFinal.toFixed(2)}</div>
+          <p className={`text-[9px] font-bold uppercase mt-2 tracking-widest ${balanceFinal >= 0 ? 'text-indigo-400' : 'text-rose-400'}`}>
+            {balanceFinal >= 0 ? '✓ Utilidad favorable' : '⚠ Revisar descuadres'}
+          </p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 pb-10 items-start">
         
-        {/* FORMULARIO ACTUALIZADO */}
+        {/* FORMULARIO */}
         <div className="lg:col-span-4 sticky top-4">
           <div className="bg-white p-8 rounded-[3rem] shadow-2xl border-b-[12px] border-indigo-600">
             <div className="space-y-6" onKeyDown={(e) => e.key === "Enter" && !isSaving && guardarSobrante()}>
               <div>
-                <label className="text-[10px] font-black text-indigo-600 uppercase mb-3 block tracking-widest ml-1">Producto Encontrado</label>
+                <label className="text-[10px] font-black text-indigo-600 uppercase mb-3 block tracking-widest ml-1">Nombre del Producto</label>
                 <input 
-                  placeholder="NOMBRE..." 
+                  placeholder="ESCRIBIR..." 
                   value={nuevo.producto} 
                   onChange={(e) => setNuevo({ ...nuevo, producto: e.target.value })} 
-                  className="w-full bg-slate-50 border-2 border-slate-200 p-4 rounded-2xl text-sm font-black focus:border-indigo-600 outline-none uppercase text-slate-900 placeholder:text-slate-300" 
+                  className="w-full bg-white border-2 border-slate-100 p-4 rounded-2xl text-sm font-black focus:border-indigo-600 outline-none uppercase text-slate-900 placeholder:text-slate-200 italic shadow-inner" 
                 />
               </div>
 
-              {/* Grid de Cantidad y Precio */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-black text-indigo-600 uppercase mb-3 block tracking-widest ml-1">Cant.</label>
                   <input 
                     type="number" 
                     min="1"
-                    placeholder="1" 
                     value={nuevo.cantidad} 
                     onChange={(e) => setNuevo({ ...nuevo, cantidad: e.target.value })} 
-                    className="w-full border-2 border-slate-200 bg-slate-50 p-4 rounded-2xl text-xl font-black focus:border-indigo-600 outline-none text-slate-900" 
+                    className="w-full border-2 border-slate-100 bg-white p-4 rounded-2xl text-xl font-black focus:border-indigo-600 outline-none text-slate-900 shadow-inner" 
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-indigo-600 uppercase mb-3 block tracking-widest ml-1">P. Unitario</label>
+                  <label className="text-[10px] font-black text-indigo-600 uppercase mb-3 block tracking-widest ml-1">Precio S/</label>
                   <input 
                     type="number" 
                     step="0.10" 
-                    placeholder="0.00" 
                     value={nuevo.precio} 
                     onChange={(e) => setNuevo({ ...nuevo, precio: e.target.value })} 
-                    className="w-full border-2 border-slate-200 bg-slate-50 p-4 rounded-2xl text-xl font-black focus:border-indigo-600 outline-none text-slate-900" 
+                    className="w-full border-2 border-slate-100 bg-white p-4 rounded-2xl text-xl font-black focus:border-indigo-600 outline-none text-slate-900 shadow-inner" 
                   />
                 </div>
               </div>
 
               <button 
-                disabled={isSaving || !nuevo.producto || parseFloat(nuevo.precio) <= 0 || parseInt(nuevo.cantidad) <= 0}
+                disabled={isSaving || !nuevo.producto || parseFloat(nuevo.precio) <= 0}
                 onClick={guardarSobrante} 
                 className={`w-full font-black py-6 rounded-2xl shadow-xl uppercase text-xs tracking-widest transition-all italic ${
                     isSaving ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white active:translate-y-1'
                 }`}
               >
-                {isSaving ? "PROCESANDO..." : "INGRESAR EXCEDENTE"}
+                {isSaving ? "PROCESANDO..." : "REGISTRAR EN TABLA"}
               </button>
             </div>
           </div>
         </div>
 
-        {/* TABLA ACTUALIZADA */}
-        {/* TABLA ACTUALIZADA ESTILO FALTANTES */}
-<div className="lg:col-span-8 bg-white rounded-[3rem] shadow-xl border border-slate-200 flex flex-col h-[650px] overflow-hidden">
-  <div className="bg-slate-900 p-6 px-10 border-b-4 border-indigo-600 flex justify-between items-center shrink-0">
-    <h3 className="text-white font-black uppercase italic tracking-widest text-sm">
-      {esMes ? "HISTORIAL DEL MES" : "HISTORIAL SEMANAL"}
-    </h3>
-    <span className="text-[10px] font-black bg-white text-slate-900 px-4 py-1.5 rounded-full uppercase">
-      {productos.length} REPORTE(S)
-    </span>
-  </div>
-  
-  <div className="flex-1 overflow-y-auto scrollbar-hide">
-    <table className="w-full border-collapse">
-      <thead className="sticky top-0 bg-white z-10 shadow-sm">
-        <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-          <th className="px-10 py-6 text-left border-b border-slate-50">Detalle</th>
-          <th className="px-6 py-6 text-center border-b border-slate-50">Cant.</th>
-          <th className="px-6 py-6 text-right border-b border-slate-50">Monto</th>
-          <th className="px-10 py-6 text-center border-b border-slate-50">Acciones</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-slate-50">
-        {productos.map((item) => (
-          <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-            {editandoId === item.id ? (
-              <td colSpan={4} className="p-4 bg-indigo-50">
-                <div className="flex gap-3 items-center">
-                  <input 
-                    value={editForm.producto} 
-                    onChange={(e) => setEditForm({...editForm, producto: e.target.value})} 
-                    className="flex-1 bg-white p-3 rounded-xl font-black uppercase text-xs border-2 border-indigo-300 text-slate-900 outline-none" 
-                  />
-                  <input 
-                    type="number" 
-                    value={editForm.cantidad} 
-                    onChange={(e) => setEditForm({...editForm, cantidad: parseInt(e.target.value)})} 
-                    className="w-16 bg-white p-3 rounded-xl font-black text-center text-xs border-2 border-indigo-300 text-slate-900" 
-                  />
-                  <input 
-                    type="number" 
-                    step="0.1" 
-                    value={editForm.precio} 
-                    onChange={(e) => setEditForm({...editForm, precio: e.target.value})} 
-                    className="w-24 bg-white p-3 rounded-xl font-black text-right text-xs border-2 border-indigo-300 text-slate-900 font-mono" 
-                  />
-                  <button onClick={() => actualizarProducto(item.id)} className="bg-emerald-600 text-white p-3 rounded-xl shadow-md">✓</button>
-                  <button onClick={() => setEditandoId(null)} className="bg-slate-300 text-slate-700 p-3 rounded-xl">✕</button>
-                </div>
-              </td>
-            ) : (
-              <>
-                <td className="px-10 py-5">
-                  <div className="text-[9px] font-black text-slate-400 font-mono">{item.fecha}</div>
-                  <div className="font-black text-slate-900 uppercase text-sm italic">{item.producto}</div>
-                </td>
-                <td className="px-6 py-5 text-center font-black text-indigo-600 text-base">
-                  {item.cantidad || 1}
-                </td>
-                <td className="px-6 py-5 text-right font-black text-slate-900 font-mono text-sm italic">
-                  S/ {parseFloat(item.precio).toFixed(2)}
-                </td>
-                <td className="px-10 py-5">
-                  <div className="flex gap-2 justify-center">
-                    {/* BOTÓN EDITAR (Estilo Faltante) */}
-                    <button 
-                      onClick={() => iniciarEdicion(item)} 
-                      className="bg-slate-900 text-white p-3 rounded-xl hover:bg-indigo-600 transition-colors shadow-sm"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>
-                      </svg>
-                    </button>
-                    {/* BOTÓN ELIMINAR (Estilo Faltante) */}
-                    <button 
-                      onClick={() => eliminarProducto(item.id)} 
-                      className="bg-white text-rose-600 border-2 border-rose-50 p-3 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-                      </svg>
-                    </button>
-                  </div>
-                </td>
-              </>
-            )}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-</div>
-
-
+        {/* TABLA DE HISTORIAL */}
+        <div className="lg:col-span-8 bg-white rounded-[3rem] shadow-xl border border-slate-200 flex flex-col h-[650px] overflow-hidden">
+          <div className="bg-slate-900 p-6 px-10 border-b-4 border-indigo-600 flex justify-between items-center shrink-0">
+            <h3 className="text-white font-black uppercase italic tracking-widest text-sm">REGISTROS</h3>
+            <span className="text-[10px] font-black bg-white text-slate-900 px-4 py-1.5 rounded-full uppercase">
+              {productos.length} TOTAL
+            </span>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto scrollbar-hide">
+            <table className="w-full border-collapse">
+              <thead className="sticky top-0 bg-white z-10 shadow-sm">
+                <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  <th className="px-10 py-6 text-left border-b border-slate-50">Producto</th>
+                  <th className="px-6 py-6 text-center border-b border-slate-50">Cant.</th>
+                  <th className="px-6 py-6 text-right border-b border-slate-50">Precio</th>
+                  <th className="px-10 py-6 text-center border-b border-slate-50">Opciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {productos.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                    {editandoId === item.id ? (
+                      <td colSpan={4} className="p-4 bg-indigo-50/50">
+                        <div className="flex gap-3 items-center" onKeyDown={(e) => e.key === "Enter" && actualizarProducto(item.id)}>
+                          <input 
+                            value={editForm.producto} 
+                            onChange={(e) => setEditForm({...editForm, producto: e.target.value})} 
+                            className="flex-1 bg-white p-3 rounded-xl font-black uppercase text-xs border-2 border-indigo-200 outline-none text-slate-900" 
+                            autoFocus
+                          />
+                          <input 
+                            type="number" 
+                            value={editForm.cantidad} 
+                            onChange={(e) => setEditForm({...editForm, cantidad: parseInt(e.target.value)})} 
+                            className="w-16 bg-white p-3 rounded-xl font-black text-center text-xs border-2 border-indigo-200 text-slate-900" 
+                          />
+                          <input 
+                            type="number" 
+                            step="0.1" 
+                            value={editForm.precio} 
+                            onChange={(e) => setEditForm({...editForm, precio: e.target.value})} 
+                            className="w-24 bg-white p-3 rounded-xl font-black text-right text-xs border-2 border-indigo-200 text-slate-900" 
+                          />
+                          <button onClick={() => actualizarProducto(item.id)} className="bg-indigo-600 text-white p-3 rounded-xl shadow-md">OK</button>
+                          <button onClick={() => setEditandoId(null)} className="bg-white text-slate-400 p-3 rounded-xl border border-slate-200">✕</button>
+                        </div>
+                      </td>
+                    ) : (
+                      <>
+                        <td className="px-10 py-5">
+                          <div className="text-[8px] font-black text-slate-300 font-mono tracking-tighter uppercase">{item.fecha}</div>
+                          <div className="font-black text-slate-900 uppercase text-sm italic">{item.producto}</div>
+                        </td>
+                        <td className="px-6 py-5 text-center font-black text-indigo-600 text-base">
+                          {item.cantidad || 1}
+                        </td>
+                        <td className="px-6 py-5 text-right font-black text-slate-900 font-mono text-sm italic">
+                          S/ {parseFloat(item.precio).toFixed(2)}
+                        </td>
+                        <td className="px-10 py-5 text-center">
+                          <div className="flex gap-2 justify-center">
+                            <button 
+                              onClick={() => iniciarEdicion(item)} 
+                              className="bg-slate-900 text-white p-3 rounded-xl hover:bg-indigo-600 transition-colors shadow-sm"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>
+                              </svg>
+                            </button>
+                            <button 
+                              onClick={() => eliminarProducto(item.id)} 
+                              className="bg-white text-rose-500 border-2 border-rose-50 p-3 rounded-xl hover:bg-rose-500 hover:text-white transition-all"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   );

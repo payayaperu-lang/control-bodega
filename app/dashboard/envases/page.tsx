@@ -197,31 +197,48 @@ export default function EnvasesPage() {
       </header>
 
       {/* STATS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border-2 border-slate-50 shadow-sm text-center">
-          <span className="text-[10px] font-bold text-slate-500 uppercase mb-1 block tracking-widest">Pendientes</span>
-          <span className="text-4xl font-black text-rose-600 tracking-tighter">{pendientes}</span>
-        </div>
-        <div className="bg-white p-5 rounded-2xl border-2 border-slate-50 shadow-sm text-center">
-          <span className="text-[10px] font-bold text-slate-500 uppercase mb-1 block tracking-widest">Recuperados</span>
-          <span className="text-4xl font-black text-emerald-600 tracking-tighter">{entregados}</span>
-        </div>
-        <div className="bg-slate-900 p-5 rounded-2xl flex items-center justify-between col-span-2 text-white">
-          <div>
-             <span className="text-[10px] font-bold opacity-70 uppercase block tracking-widest">Eficiencia</span>
-             <span className="text-4xl font-black tracking-tighter">{porcentaje}%</span>
-          </div>
-          <div className="w-16 h-16">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={dataGrafico} innerRadius={20} outerRadius={30} dataKey="value" stroke="none">
-                  <Cell fill="#fb7185" /><Cell fill="#34d399" />
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
+      {/* STATS ACTUALIZADO CON TARJETA DE GARANTÍA */}
+<div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+  {/* Tarjeta 1: Cantidad Pendiente */}
+  <div className="bg-white p-5 rounded-2xl border-2 border-slate-50 shadow-sm text-center">
+    <span className="text-[10px] font-bold text-slate-500 uppercase mb-1 block tracking-widest">Botellas Pend.</span>
+    <span className="text-4xl font-black text-rose-600 tracking-tighter">{pendientes}</span>
+  </div>
+
+  {/* Tarjeta 2: Cantidad Recuperados */}
+  <div className="bg-white p-5 rounded-2xl border-2 border-slate-50 shadow-sm text-center">
+    <span className="text-[10px] font-bold text-slate-500 uppercase mb-1 block tracking-widest">Recuperados</span>
+    <span className="text-4xl font-black text-emerald-600 tracking-tighter">{entregados}</span>
+  </div>
+
+  {/* NUEVA TARJETA 3: DINERO DE GARANTÍA (Solo pendientes) */}
+  <div className="bg-amber-50 p-5 rounded-2xl border-2 border-amber-100 shadow-sm text-center">
+    <span className="text-[10px] font-bold text-amber-600 uppercase mb-1 block tracking-widest italic">Garantía x Devolver</span>
+    <div className="flex flex-col">
+      <span className="text-3xl font-black text-amber-700 tracking-tighter font-mono">
+        S/ {dineroFaltante.toFixed(2)}
+      </span>
+      <span className="text-[8px] font-black text-amber-500 uppercase mt-1">Capital en calle</span>
+    </div>
+  </div>
+
+  {/* Tarjeta 4: Eficiencia (Ahora ocupa 2 columnas en PC) */}
+  <div className="bg-slate-900 p-5 rounded-2xl flex items-center justify-between col-span-2 text-white">
+    <div>
+       <span className="text-[10px] font-bold opacity-70 uppercase block tracking-widest">Eficiencia</span>
+       <span className="text-4xl font-black tracking-tighter">{porcentaje}%</span>
+    </div>
+    <div className="w-16 h-16">
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie data={dataGrafico} innerRadius={20} outerRadius={30} dataKey="value" stroke="none">
+            <Cell fill="#fb7185" /><Cell fill="#34d399" />
+          </Pie>
+        </PieChart>
+      </ResponsiveContainer>
+    </div>
+  </div>
+</div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* FORM */}
@@ -300,8 +317,7 @@ export default function EnvasesPage() {
                   const { dia, mes } = formatFechaCorta(item.fecha);
                   return (
                     <tr key={item.id} className="hover:bg-blue-50/40 transition-colors">
-                      <td className="px-6 py-1">
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-6">
                         <div className="flex flex-col items-center gap-1">
                           {/* CUADRITO DE FECHA (Tu diseño original) */}
                           <div className="flex flex-col items-center justify-center bg-slate-100 w-12 h-12 rounded-xl border border-slate-200">
@@ -315,7 +331,7 @@ export default function EnvasesPage() {
                           </span>
                         </div>
                       </td>
-                      </td>
+                      
                       <td className="px-4 py-4">
                         <div className="font-black text-slate-900 uppercase text-sm tracking-tight">{item.cliente}</div>
                         <div className="text-[11px] font-bold text-slate-500 uppercase italic">{item.envase}</div>

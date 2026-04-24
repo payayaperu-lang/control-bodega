@@ -48,20 +48,32 @@ export default function FaltantesPage() {
     }
   };
 
-  async function fetchDatos() {
-    setLoading(true);
-    let qProd = supabase.from("prod_faltantes").select("*").order("id", { ascending: false });
-    let qSob = supabase.from("dine_sobrante").select("dinero");
-    if (fechaDesde && fechaHasta) {
-      qProd = qProd.gte("fecha", fechaDesde).lte("fecha", fechaHasta);
-      qSob = qSob.gte("fecha", fechaDesde).lte("fecha", fechaHasta);
-    }
-    const { data: dP } = await qProd;
-    const { data: dS } = await qSob;
-    setProductos(dP || []);
-    setSobranteTotal(dS?.reduce((acc, c) => acc + (parseFloat(c.dinero) || 0), 0) || 0);
-    setLoading(false);
+  // Dentro de tu función fetchDatos, añade la consulta a prod_sobrante
+async function fetchDatos() {
+  setLoading(true);
+  let qProd = supabase.from("prod_faltantes").select("*").order("id", { ascending: false });
+  let qDineSob = supabase.from("dine_sobrante").select("dinero");
+  let qProdSob = supabase.from("prod_sobrante").select("precio, cantidad"); // Traemos esto
+
+  if (fechaDesde && fechaHasta) {
+    qProd = qProd.gte("fecha", fechaDesde).lte("fecha", fechaHasta);
+    qDineSob = qDineSob.gte("fecha", fechaDesde).lte("fecha", fechaHasta);
+    qProdSob = qProdSob.gte("fecha", fechaDesde).lte("fecha", fechaHasta);
   }
+
+  const { data: dP } = await qProd;
+  const { data: dDS } = await qDineSob;
+  const { data: dPS } = await qProdSob;
+
+  setProductos(dP || []);
+  
+  // Sumamos Efectivo Sobrante + Valor de Productos Sobrantes
+  const efectivo = dDS?.reduce((acc, c) => acc + (parseFloat(c.dinero) || 0), 0) || 0;
+  const valorProds = dPS?.reduce((acc, c) => acc + (parseFloat(c.precio) * (c.cantidad || 1)), 0) || 0;
+  
+  setSobranteTotal(efectivo + valorProds); 
+  setLoading(false);
+}
 
   async function guardarProducto() {
     // Validación estricta: No permite menores o iguales a 0
@@ -137,11 +149,11 @@ export default function FaltantesPage() {
         <div className="flex items-center gap-4 bg-white p-2 rounded-2xl shadow-xl border border-slate-200">
           <div className="flex gap-4 px-4 border-r border-slate-100">
             <div className="flex flex-col">
-              <span className="text-[8px] font-black text-slate-400 uppercase italic mb-1">Inicia</span>
+              <span className="text-[8px] font-black text-slate-400 uppercase italic mb-1">Desde</span>
               <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className="text-xs font-black outline-none bg-transparent" />
             </div>
             <div className="flex flex-col">
-              <span className="text-[8px] font-black text-slate-400 uppercase italic mb-1">Finaliza</span>
+              <span className="text-[8px] font-black text-slate-400 uppercase italic mb-1">Hasta</span>
               <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className="text-xs font-black outline-none bg-transparent" />
             </div>
           </div>
@@ -156,31 +168,42 @@ export default function FaltantesPage() {
       </header>
 
       {/* TARJETAS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-slate-900 p-6 rounded-[2.5rem] shadow-xl border-b-[10px] border-orange-500 text-white">
-          <span className="text-[10px] font-black opacity-40 uppercase mb-2 block">Pérdida en Productos</span>
-          <div className="flex items-baseline gap-2">
-            <span className="text-xl font-bold text-orange-500">S/</span>
-            <span className="text-6xl font-black tracking-tighter leading-none">{montoFaltanteAcumulado.toFixed(2)}</span>
-          </div>
-        </div>
+      {/* STATS ESTILO ENVASES */}
+<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+  {/* Tarjeta 1: Pérdida */}
+  <div className="bg-white p-5 rounded-2xl border-2 border-slate-50 shadow-sm text-center">
+    <span className="text-[10px] font-bold text-slate-500 uppercase mb-1 block tracking-widest">Pérdida Prod.</span>
+    <span className="text-4xl font-black text-rose-600 tracking-tighter">
+      S/ {montoFaltanteAcumulado.toFixed(2)}
+    </span>
+  </div>
 
-        <div className="bg-white p-6 rounded-[2.5rem] shadow-lg border-b-[10px] border-emerald-500">
-          <span className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Efectivo Sobrante</span>
-          <div className="flex items-baseline gap-2">
-            <span className="text-xl font-bold text-emerald-500 italic">S/</span>
-            <span className="text-6xl font-black text-slate-900 tracking-tighter leading-none">{sobranteTotal.toFixed(2)}</span>
-          </div>
-        </div>
+  {/* Tarjeta 2: Sobrante Acumulado (Efectivo + Prods) */}
+  <div className="bg-white p-5 rounded-2xl border-2 border-slate-50 shadow-sm text-center">
+    <span className="text-[10px] font-bold text-slate-500 uppercase mb-1 block tracking-widest">Sobrante Total</span>
+    <div className="flex flex-col">
+      <span className="text-4xl font-black text-emerald-600 tracking-tighter">
+        S/ {sobranteTotal.toFixed(2)}
+      </span>
+      <span className="text-[8px] font-black text-emerald-400 uppercase">Prod Sobrante + Dine Sobrante</span>
+    </div>
+  </div>
 
-        <div className={`p-6 rounded-[2.5rem] text-white shadow-2xl border-b-[10px] ${diferenciaMatch >= 0 ? 'bg-emerald-600 border-emerald-800' : 'bg-rose-600 border-rose-800'}`}>
-          <span className="text-[10px] font-black uppercase opacity-70 mb-2 block">Balance Final</span>
-          <div className="flex items-baseline gap-2">
-            <span className="text-xl font-bold opacity-60 italic">S/</span>
-            <span className="text-6xl font-black tracking-tighter leading-none">{Math.abs(diferenciaMatch).toFixed(2)}</span>
-          </div>
-        </div>
+  {/* Tarjeta 3: Balance Final (Ocupa 2 columnas) */}
+  <div className={`${diferenciaMatch >= 0 ? 'bg-slate-900' : 'bg-rose-900'} p-5 rounded-2xl flex items-center justify-between col-span-2 text-white shadow-lg`}>
+    <div>
+       <span className="text-[10px] font-bold opacity-70 uppercase block tracking-widest">Balance Final</span>
+       <span className="text-4xl font-black tracking-tighter">
+         {diferenciaMatch >= 0 ? '+' : '-'} S/ {Math.abs(diferenciaMatch).toFixed(2)}
+       </span>
+    </div>
+    <div className="text-right">
+      <div className={`text-[10px] font-black px-3 py-1 rounded-full uppercase ${diferenciaMatch >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+        {diferenciaMatch >= 0 ? 'Cuadrado' : 'Faltante Crítico'}
       </div>
+    </div>
+  </div>
+</div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
@@ -240,7 +263,7 @@ export default function FaltantesPage() {
                           <input value={editForm.producto} onChange={(e) => setEditForm({...editForm, producto: e.target.value})} className="flex-1 bg-white p-3 rounded-xl font-black uppercase text-xs border-2 border-orange-300 text-slate-900" />
                           <input type="number" min="1" value={editForm.cantidad} onChange={(e) => setEditForm({...editForm, cantidad: e.target.value})} className="w-16 bg-white p-3 rounded-xl font-black text-center text-xs border-2 border-orange-300 text-slate-900" />
                           <input type="number" step="0.1" min="0.1" value={editForm.precio} onChange={(e) => setEditForm({...editForm, precio: e.target.value})} className="w-24 bg-white p-3 rounded-xl font-black text-right text-xs border-2 border-orange-300 text-slate-900 font-mono" />
-                          <button onClick={handleSaveEdit} className="bg-emerald-600 text-white p-3 rounded-xl shadow-md">✓</button>
+                          <button onClick={handleSaveEdit} className="bg-emerald-600 text-white p-3 rounded-xl shadow-md">OK</button>
                           <button onClick={() => setEditingId(null)} className="bg-slate-300 text-slate-700 p-3 rounded-xl">✕</button>
                         </div>
                       </td>

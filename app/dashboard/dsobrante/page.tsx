@@ -162,32 +162,42 @@ export default function DineroSobranteAdminPage() {
         </header>
 
         {/* RESUMEN */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <div className="bg-slate-900 p-8 rounded-[2rem] text-white shadow-xl border-b-[12px] border-emerald-500">
-            <p className="text-[10px] font-black uppercase opacity-60 mb-2 tracking-widest">Acumulado</p>
-            <div className="flex items-baseline gap-1">
-              <span className="text-xl font-bold text-emerald-500 italic">S/</span>
-              <span className="text-5xl font-black tracking-tighter">{totalSobranteAcumulado.toFixed(2)}</span>
-            </div>
-          </div>
+        {/* RESUMEN ESTILO ENVASES */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           
-          <div className="bg-white p-8 rounded-[2rem] shadow-xl border-b-[12px] border-orange-500">
-            <p className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">Faltantes</p>
-            <div className="flex items-baseline justify-between">
-              <div className="flex items-baseline gap-1">
-                <span className="text-xl font-bold text-orange-500 italic">S/</span>
-                <span className="text-5xl font-black text-slate-900 tracking-tighter">{montoFaltanteTotal.toFixed(2)}</span>
+          {/* Tarjeta 1: Acumulado Sobrante */}
+          <div className="bg-white p-5 rounded-2xl border-2 border-slate-50 shadow-sm text-center">
+            <span className="text-[10px] font-bold text-slate-500 uppercase mb-1 block tracking-widest italic">Efectivo Sobrante</span>
+            <span className="text-4xl font-black text-emerald-600 tracking-tighter">
+              S/ {totalSobranteAcumulado.toFixed(2)}
+            </span>
+          </div>
+
+          {/* Tarjeta 2: Faltantes en Productos */}
+          <div className="bg-white p-5 rounded-2xl border-2 border-slate-50 shadow-sm text-center">
+            <span className="text-[10px] font-bold text-slate-500 uppercase mb-1 block tracking-widest italic">Pérdida Prod.</span>
+            <span className="text-4xl font-black text-rose-600 tracking-tighter">
+              S/ {montoFaltanteTotal.toFixed(2)}
+            </span>
+          </div>
+
+          {/* Tarjeta 3: Balance (Ocupa 2 columnas) */}
+          <div className={`p-5 rounded-2xl flex items-center justify-between col-span-1 md:col-span-2 text-white shadow-lg transition-colors duration-500 ${diferenciaMatch >= 0 ? 'bg-slate-900' : 'bg-rose-950'}`}>
+            <div>
+               <span className="text-[10px] font-bold opacity-70 uppercase block tracking-widest italic">
+                {diferenciaMatch >= 0 ? "Balance Final" : "Déficit Total"}
+               </span>
+               <span className="text-4xl font-black tracking-tighter">
+                 {diferenciaMatch >= 0 ? '+' : '-'} S/ {Math.abs(diferenciaMatch).toFixed(2)}
+               </span>
+            </div>
+            <div className="text-right hidden sm:block">
+              <div className={`text-[10px] font-black px-4 py-2 rounded-full uppercase tracking-tighter ${diferenciaMatch >= 0 ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white'}`}>
+                {diferenciaMatch >= 0 ? 'CAJA CUADRADA' : 'REVISAR CAJA'}
               </div>
             </div>
           </div>
 
-          <div className={`p-8 rounded-[2.5rem] text-white shadow-2xl border-b-[12px] transition-all ${diferenciaMatch >= 0 ? 'bg-emerald-600 border-emerald-800' : 'bg-rose-600 border-rose-800'}`}>
-            <p className="text-[10px] font-black uppercase opacity-80 mb-2 tracking-widest italic">{diferenciaMatch >= 0 ? "Balance a Favor" : "Balance Negativo"}</p>
-            <div className="flex items-baseline gap-1">
-              <span className="text-xl font-bold opacity-70 italic">S/</span>
-              <span className="text-5xl font-black tracking-tighter italic">{Math.abs(diferenciaMatch).toFixed(2)}</span>
-            </div>
-          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -280,8 +290,17 @@ export default function DineroSobranteAdminPage() {
                             </div>
                           ) : (
                             <div className="flex gap-2 justify-center">
-                              <button onClick={() => iniciarEdicion(item)} className="p-3 bg-white border border-slate-100 rounded-xl hover:bg-emerald-50 shadow-sm transition-all">✏️</button>
-                              <button onClick={() => eliminarRegistro(item.id)} className="p-3 bg-white border border-slate-100 rounded-xl hover:bg-rose-50 text-rose-500 shadow-sm transition-all">🗑️</button>
+                              <button onClick={() => iniciarEdicion(item)} 
+                              className="bg-slate-900 text-white p-3 rounded-xl hover:bg-indigo-600 transition-colors shadow-sm"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>
+                              </svg></button>
+                              <button onClick={() => eliminarRegistro(item.id)} className="bg-white text-rose-500 border-2 border-rose-50 p-3 rounded-xl hover:bg-rose-500 hover:text-white transition-all"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                              </svg></button>
                             </div>
                           )}
                         </td>
