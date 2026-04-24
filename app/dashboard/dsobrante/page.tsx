@@ -16,7 +16,7 @@ export default function DineroSobranteAdminPage() {
 
   const [filtroCajero, setFiltroCajero] = useState("todos");
   const [nuevo, setNuevo] = useState({ cajero: "", dinero: "", tipo: "1" });
-  const listaCajeros = ["Katherine", "Maria", "Enma", "Axel"];
+  const listaCajeros = ["Katherine", "Maria", "Enma", "Nicol","Axel"];
 
   const getLocalDate = (date: Date) => {
     const year = date.getFullYear();

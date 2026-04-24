@@ -206,10 +206,17 @@ export default function EnvasesRegistroPage() {
                   <label className="text-[10px] font-black text-blue-600 uppercase mb-2 block tracking-widest ml-1">Envase</label>
                   <select value={nuevo.envase} onChange={(e) => setNuevo({ ...nuevo, envase: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-sm font-black text-slate-900 outline-none focus:border-blue-600 uppercase transition-all cursor-pointer">
                     <option value="">SELECCIONAR...</option>
-                    <option value="Coca Cola 296ml">Coca Cola 296ml</option>
-                    <option value="Pirañita">Pirañita</option>
+                    <option value="Pirañita 192ml">Pirañita 192ml</option>
+                    <option value="Envase 296ml">Envase 296ml</option>
                     <option value="Inca Kola 1L">Inca Kola 1L</option>
                     <option value="Coca Cola 1L">Coca Cola 1L</option>
+                    <option value="Inca K. 1.5L">Inca K. 1.5L</option>
+                    <option value="Coca C. 1.5L">Coca C. 1.5L</option>
+                    <option value="Inca Gordita">Inca Gordita</option>
+                    <option value="Inca K. 2.5L">Inca K. 2.5L</option>
+                    <option value="Coca C. 2.5L">Coca C. 2.5L</option>
+                    <option value="Cerveza 630ML">Cerveza 630ML</option>
+                    <option value="Cerveza 1L">Cerveza 1L</option>
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
