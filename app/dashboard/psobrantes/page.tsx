@@ -9,10 +9,11 @@ export default function ProductoSobrantePage() {
   const [isSaving, setIsSaving] = useState(false); 
   
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
-  const [nuevo, setNuevo] = useState({ producto: "", precio: "" });
+  // 1. Añadimos 'cantidad' al estado inicial
+  const [nuevo, setNuevo] = useState({ producto: "", cantidad: "1", precio: "" });
 
   const [editandoId, setEditandoId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState({ producto: "", precio: "" });
+  const [editForm, setEditForm] = useState({ producto: "", cantidad: 0, precio: "" });
 
   const getLocalDate = (date: Date) => {
     const year = date.getFullYear();
@@ -47,8 +48,9 @@ export default function ProductoSobrantePage() {
     else { setFechaDesde(lunesActual); setFechaHasta(domingoActual); }
   };
 
+  // 2. Cálculo del total considerando cantidad
   const totalDinero = useMemo(() => {
-    return productos.reduce((acc, item) => acc + (parseFloat(item.precio) || 0), 0);
+    return productos.reduce((acc, item) => acc + ((parseFloat(item.precio) || 0) * (item.cantidad || 1)), 0);
   }, [productos]);
 
   useEffect(() => { fetchSobrantes(); }, [fechaDesde, fechaHasta]);
@@ -65,18 +67,20 @@ export default function ProductoSobrantePage() {
   }
 
   async function guardarSobrante() {
-    if (!nuevo.producto || !nuevo.precio || isSaving) return;
+    // 3. Validación de cantidad en el guardado
+    if (!nuevo.producto || !nuevo.precio || parseInt(nuevo.cantidad) <= 0 || isSaving) return;
     if (parseFloat(nuevo.precio) <= 0) return alert("⚠️ El precio debe ser mayor a cero");
     
     setIsSaving(true);
     const { error } = await supabase.from("prod_sobrante").insert([{
       producto: nuevo.producto.toUpperCase(),
-      precio: nuevo.precio,
+      cantidad: parseInt(nuevo.cantidad),
+      precio: parseFloat(nuevo.precio),
       fecha: hoyStr 
     }]);
 
     if (!error) {
-      setNuevo({ producto: "", precio: "" });
+      setNuevo({ producto: "", cantidad: "1", precio: "" });
       await fetchSobrantes();
       setShowSuccessPopup(true);
       setTimeout(() => setShowSuccessPopup(false), 2500);
@@ -86,11 +90,11 @@ export default function ProductoSobrantePage() {
 
   const iniciarEdicion = (item: any) => {
     setEditandoId(item.id);
-    setEditForm({ producto: item.producto, precio: item.precio });
+    setEditForm({ producto: item.producto, cantidad: item.cantidad, precio: item.precio });
   };
 
   async function actualizarProducto(id: number) {
-    if (parseFloat(editForm.precio) <= 0) return alert("⚠️ El precio debe ser mayor a cero");
+    if (parseFloat(editForm.precio) <= 0 || editForm.cantidad <= 0) return alert("⚠️ Valores deben ser mayores a cero");
     if (isSaving) return;
 
     setIsSaving(true);
@@ -98,6 +102,7 @@ export default function ProductoSobrantePage() {
       .from("prod_sobrante")
       .update({ 
         producto: editForm.producto.toUpperCase(), 
+        cantidad: editForm.cantidad,
         precio: editForm.precio 
       })
       .eq("id", id);
@@ -162,7 +167,7 @@ export default function ProductoSobrantePage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 pb-10 items-start">
         
-        {/* FORMULARIO */}
+        {/* FORMULARIO ACTUALIZADO */}
         <div className="lg:col-span-4 sticky top-4">
           <div className="bg-white p-8 rounded-[3rem] shadow-2xl border-b-[12px] border-indigo-600">
             <div className="space-y-6" onKeyDown={(e) => e.key === "Enter" && !isSaving && guardarSobrante()}>
@@ -175,19 +180,35 @@ export default function ProductoSobrantePage() {
                   className="w-full bg-slate-50 border-2 border-slate-200 p-4 rounded-2xl text-sm font-black focus:border-indigo-600 outline-none uppercase text-slate-900 placeholder:text-slate-300" 
                 />
               </div>
-              <div>
-                <label className="text-[10px] font-black text-indigo-600 uppercase mb-3 block tracking-widest ml-1">Precio Unitario</label>
-                <input 
+
+              {/* Grid de Cantidad y Precio */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black text-indigo-600 uppercase mb-3 block tracking-widest ml-1">Cant.</label>
+                  <input 
+                    type="number" 
+                    min="1"
+                    placeholder="1" 
+                    value={nuevo.cantidad} 
+                    onChange={(e) => setNuevo({ ...nuevo, cantidad: e.target.value })} 
+                    className="w-full border-2 border-slate-200 bg-slate-50 p-4 rounded-2xl text-xl font-black focus:border-indigo-600 outline-none text-slate-900" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-indigo-600 uppercase mb-3 block tracking-widest ml-1">P. Unitario</label>
+                  <input 
                     type="number" 
                     step="0.10" 
                     placeholder="0.00" 
                     value={nuevo.precio} 
                     onChange={(e) => setNuevo({ ...nuevo, precio: e.target.value })} 
-                    className="w-full border-2 border-slate-200 bg-slate-50 p-5 rounded-2xl text-2xl font-black focus:border-indigo-600 outline-none text-slate-900" 
-                />
+                    className="w-full border-2 border-slate-200 bg-slate-50 p-4 rounded-2xl text-xl font-black focus:border-indigo-600 outline-none text-slate-900" 
+                  />
+                </div>
               </div>
+
               <button 
-                disabled={isSaving || !nuevo.producto || parseFloat(nuevo.precio) <= 0}
+                disabled={isSaving || !nuevo.producto || parseFloat(nuevo.precio) <= 0 || parseInt(nuevo.cantidad) <= 0}
                 onClick={guardarSobrante} 
                 className={`w-full font-black py-6 rounded-2xl shadow-xl uppercase text-xs tracking-widest transition-all italic ${
                     isSaving ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white active:translate-y-1'
@@ -199,94 +220,100 @@ export default function ProductoSobrantePage() {
           </div>
         </div>
 
-        {/* TABLA */}
-        <div className="lg:col-span-8 bg-white rounded-[3.5rem] shadow-xl border border-slate-200 flex flex-col h-[700px] overflow-hidden">
-          <div className="bg-slate-900 p-6 px-10 flex justify-between items-center border-b border-indigo-500 shrink-0">
-            <div>
-              <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Maestro</p>
-              <h3 className="text-lg font-black text-white uppercase italic">HISTORIAL {esMes ? "DEL MES" : "DE SEMANA"}</h3>
-            </div>
-            <div className="flex gap-2">
-              <span className="bg-slate-800 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase">{productos.length} ITEMS</span>
-              <span className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[11px] font-black uppercase shadow-lg border-b-2 border-indigo-800">TOTAL: S/ {totalDinero.toFixed(2)}</span>
-            </div>
-          </div>
+        {/* TABLA ACTUALIZADA */}
+        {/* TABLA ACTUALIZADA ESTILO FALTANTES */}
+<div className="lg:col-span-8 bg-white rounded-[3rem] shadow-xl border border-slate-200 flex flex-col h-[650px] overflow-hidden">
+  <div className="bg-slate-900 p-6 px-10 border-b-4 border-indigo-600 flex justify-between items-center shrink-0">
+    <h3 className="text-white font-black uppercase italic tracking-widest text-sm">
+      {esMes ? "HISTORIAL DEL MES" : "HISTORIAL SEMANAL"}
+    </h3>
+    <span className="text-[10px] font-black bg-white text-slate-900 px-4 py-1.5 rounded-full uppercase">
+      {productos.length} REPORTE(S)
+    </span>
+  </div>
+  
+  <div className="flex-1 overflow-y-auto scrollbar-hide">
+    <table className="w-full border-collapse">
+      <thead className="sticky top-0 bg-white z-10 shadow-sm">
+        <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+          <th className="px-10 py-6 text-left border-b border-slate-50">Detalle</th>
+          <th className="px-6 py-6 text-center border-b border-slate-50">Cant.</th>
+          <th className="px-6 py-6 text-right border-b border-slate-50">Monto</th>
+          <th className="px-10 py-6 text-center border-b border-slate-50">Acciones</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-50">
+        {productos.map((item) => (
+          <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+            {editandoId === item.id ? (
+              <td colSpan={4} className="p-4 bg-indigo-50">
+                <div className="flex gap-3 items-center">
+                  <input 
+                    value={editForm.producto} 
+                    onChange={(e) => setEditForm({...editForm, producto: e.target.value})} 
+                    className="flex-1 bg-white p-3 rounded-xl font-black uppercase text-xs border-2 border-indigo-300 text-slate-900 outline-none" 
+                  />
+                  <input 
+                    type="number" 
+                    value={editForm.cantidad} 
+                    onChange={(e) => setEditForm({...editForm, cantidad: parseInt(e.target.value)})} 
+                    className="w-16 bg-white p-3 rounded-xl font-black text-center text-xs border-2 border-indigo-300 text-slate-900" 
+                  />
+                  <input 
+                    type="number" 
+                    step="0.1" 
+                    value={editForm.precio} 
+                    onChange={(e) => setEditForm({...editForm, precio: e.target.value})} 
+                    className="w-24 bg-white p-3 rounded-xl font-black text-right text-xs border-2 border-indigo-300 text-slate-900 font-mono" 
+                  />
+                  <button onClick={() => actualizarProducto(item.id)} className="bg-emerald-600 text-white p-3 rounded-xl shadow-md">✓</button>
+                  <button onClick={() => setEditandoId(null)} className="bg-slate-300 text-slate-700 p-3 rounded-xl">✕</button>
+                </div>
+              </td>
+            ) : (
+              <>
+                <td className="px-10 py-5">
+                  <div className="text-[9px] font-black text-slate-400 font-mono">{item.fecha}</div>
+                  <div className="font-black text-slate-900 uppercase text-sm italic">{item.producto}</div>
+                </td>
+                <td className="px-6 py-5 text-center font-black text-indigo-600 text-base">
+                  {item.cantidad || 1}
+                </td>
+                <td className="px-6 py-5 text-right font-black text-slate-900 font-mono text-sm italic">
+                  S/ {parseFloat(item.precio).toFixed(2)}
+                </td>
+                <td className="px-10 py-5">
+                  <div className="flex gap-2 justify-center">
+                    {/* BOTÓN EDITAR (Estilo Faltante) */}
+                    <button 
+                      onClick={() => iniciarEdicion(item)} 
+                      className="bg-slate-900 text-white p-3 rounded-xl hover:bg-indigo-600 transition-colors shadow-sm"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>
+                      </svg>
+                    </button>
+                    {/* BOTÓN ELIMINAR (Estilo Faltante) */}
+                    <button 
+                      onClick={() => eliminarProducto(item.id)} 
+                      className="bg-white text-rose-600 border-2 border-rose-50 p-3 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </>
+            )}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</div>
 
-          <div className="bg-white px-10 py-4 border-b border-slate-100 z-20">
-            <div className="flex w-full text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              <span className="w-1/6">Fecha</span>
-              <span className="w-2/6">Producto</span>
-              <span className="w-1/6 text-right">Precio</span>
-              <span className="w-2/6 text-center">Acciones</span>
-            </div>
-          </div>
 
-          <div className="flex-1 overflow-y-auto px-4 pb-4 bg-white scrollbar-hide">
-            <table className="w-full border-separate border-spacing-y-2">
-              <tbody>
-                {productos.map((item) => (
-                  <tr key={item.id} className="group">
-                    <td className="w-1/6 px-6 py-4 bg-slate-50 rounded-l-2xl">
-                      <p className="text-[10px] font-bold text-slate-500 font-mono italic">{item.fecha}</p>
-                    </td>
-                    
-                    <td className="w-2/6 px-6 py-4 bg-slate-50">
-                      {editandoId === item.id ? (
-                        <input 
-                          value={editForm.producto} 
-                          onKeyDown={(e) => e.key === "Enter" && actualizarProducto(item.id)}
-                          onChange={(e) => setEditForm({ ...editForm, producto: e.target.value })}
-                          className="bg-white border-2 border-indigo-600 rounded-xl px-3 py-2 text-sm font-black uppercase w-full outline-none text-slate-900"
-                          autoFocus
-                        />
-                      ) : (
-                        <p className="text-sm font-black text-slate-900 uppercase tracking-tighter italic">{item.producto}</p>
-                      )}
-                    </td>
-
-                    <td className="w-1/6 px-6 py-4 bg-slate-50 text-right">
-                      {editandoId === item.id ? (
-                        <input 
-                          type="number" 
-                          value={editForm.precio} 
-                          onKeyDown={(e) => e.key === "Enter" && actualizarProducto(item.id)}
-                          onChange={(e) => setEditForm({ ...editForm, precio: e.target.value })}
-                          className="bg-white border-2 border-indigo-600 rounded-xl px-2 py-2 text-sm font-black w-20 text-right outline-none text-slate-900"
-                        />
-                      ) : (
-                        <p className="text-lg font-black text-indigo-600 font-mono">{parseFloat(item.precio).toFixed(2)}</p>
-                      )}
-                    </td>
-
-                    <td className="w-2/6 px-6 py-4 bg-slate-50 rounded-r-2xl text-center">
-                      {editandoId === item.id ? (
-                        <div className="flex gap-2 justify-center">
-                          <button onClick={() => actualizarProducto(item.id)} className="bg-indigo-600 text-white px-3 py-2 rounded-xl text-[10px] font-black uppercase shadow-md active:scale-95 transition-all">OK</button>
-                          <button onClick={() => setEditandoId(null)} className="bg-rose-600 text-white px-3 py-2 rounded-xl text-[10px] font-black uppercase transition-all">✖</button>
-                        </div>
-                      ) : (
-                        <div className="flex gap-2 justify-center">
-                          <button 
-                            onClick={() => iniciarEdicion(item)} 
-                            className="p-3 bg-white border border-slate-200 hover:bg-indigo-600 hover:text-white rounded-xl text-indigo-600 transition-all shadow-sm"
-                          >
-                            ✏️
-                          </button>
-                          <button 
-                            onClick={() => eliminarProducto(item.id)} 
-                            className="p-3 bg-white border border-slate-200 hover:bg-rose-50 rounded-xl text-rose-500 transition-all shadow-sm"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>
     </div>
   );
