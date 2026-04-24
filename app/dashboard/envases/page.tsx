@@ -300,7 +300,7 @@ export default function EnvasesPage() {
                   const { dia, mes } = formatFechaCorta(item.fecha);
                   return (
                     <tr key={item.id} className="hover:bg-blue-50/40 transition-colors">
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-1">
                         <td className="px-6 py-4">
                         <div className="flex flex-col items-center gap-1">
                           {/* CUADRITO DE FECHA (Tu diseño original) */}
@@ -310,7 +310,7 @@ export default function EnvasesPage() {
                           </div>
                           
                           {/* LA HORA JUSTO DEBAJO */}
-                          <span className="text-[9px] font-black text-slate-400 tracking-tighter">
+                          <span className="text-[11px] font-black text-slate-400 tracking-tighter">
                             {formatHora(item.fecha)}
                           </span>
                         </div>
