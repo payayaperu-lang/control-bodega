@@ -112,14 +112,33 @@ export default function EnvasesRegistroPage() {
       fetchEnvases();
     }
   }
+  
+  const formatHora = (fechaStr: string) => {
+  const fecha = new Date(fechaStr);
+  // Usamos el locale de Perú para asegurar la hora correcta
+  return fecha.toLocaleTimeString('es-PE', { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: true 
+  }).toUpperCase();
+};
 
   const formatFechaCorta = (fechaStr: string) => {
-    const fecha = new Date(fechaStr + "T00:00:00");
-    return { 
-      dia: fecha.getDate(), 
-      mes: fecha.toLocaleString('es-ES', { month: 'short' }).replace('.', '').toUpperCase() 
-    };
-  };
+  // Creamos el objeto fecha (ahora sí soporta el formato completo)
+  const fecha = new Date(fechaStr);
+  
+  // Verificamos si la fecha es válida para evitar el NaN
+  if (isNaN(fecha.getTime())) {
+    return { dia: '00', mes: '---' };
+  }
+
+  const dia = fecha.getDate();
+  const mes = fecha.toLocaleString('es-ES', { month: 'short' })
+                   .replace('.', '')
+                   .toUpperCase();
+                   
+  return { dia, mes };
+};
 
   return (
     <>
@@ -260,10 +279,18 @@ export default function EnvasesRegistroPage() {
                     return (
                       <tr key={item.id}>
                         <td className="px-4 py-3 bg-slate-50 rounded-l-2xl">
-                          <div className={`flex flex-col items-center justify-center w-10 h-10 rounded-xl border ${item.fecha === hoyStr ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white text-slate-900'}`}>
-                            <span className="text-sm font-black leading-none">{dia}</span>
-                            <span className="text-[7px] font-black uppercase mt-0.5">{mes}</span>
+                          <div className="flex flex-col items-center gap-1">
+                          {/* CUADRITO DE FECHA (Tu diseño original) */}
+                          <div className="flex flex-col items-center justify-center bg-slate-100 w-12 h-12 rounded-xl border border-slate-200">
+                            <span className="text-lg font-black text-slate-900 leading-none">{dia}</span>
+                            <span className="text-[8px] font-black text-blue-600 leading-none mt-1">{mes}</span>
                           </div>
+                          
+                          {/* LA HORA JUSTO DEBAJO */}
+                          <span className="text-[11px] font-black text-slate-400 tracking-tighter">
+                            {formatHora(item.fecha)}
+                          </span>
+                        </div>
                         </td>
                         <td className="px-4 py-3 bg-slate-50">
                           <p className="text-[10px] font-black text-slate-400 uppercase mb-1">{item.cliente}</p>
