@@ -12,10 +12,27 @@ export default function dashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
 
-  // 🔐 PROTECCIÓN BÁSICA
+  // 🔐 PROTECCIÓN DE RUTA Y ROL
   useEffect(() => {
-    const auth = localStorage.getItem("auth");
-    if (!auth) {
+    const authData = localStorage.getItem("auth");
+
+    // 1. Si no existe sesión, al login
+    if (!authData) {
+      router.push("/login");
+      return;
+    }
+
+    try {
+      // 2. Convertimos el string de localStorage a objeto
+      const user = JSON.parse(authData);
+
+      // 3. Verificamos si es admin. Si no lo es, al área de registro
+      if (user.userRole !== "admin") {
+        router.push("/registro"); // Redirige a los trabajadores fuera del dashboard admin
+      }
+    } catch (error) {
+      // Si el JSON está mal formateado, limpiamos y mandamos a login
+      localStorage.removeItem("auth");
       router.push("/login");
     }
   }, [router]);
@@ -32,10 +49,9 @@ export default function dashboardLayout({
 
   return (
     <main className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
-      {/* SIDEBAR PARA TRABAJADORES */}
+      {/* SIDEBAR */}
       <aside className="w-full md:w-64 bg-slate-900 text-white p-6 flex flex-col shadow-xl z-20">
         
-        {/* Logo que redirige al Inicio */}
         <Link href="/dashboard" className="group">
           <div className="mb-10 text-center md:text-left transition-transform group-hover:scale-105">
             <h1 className="text-2xl font-black tracking-tighter">
@@ -49,39 +65,30 @@ export default function dashboardLayout({
 
         {/* MENU DE NAVEGACIÓN */}
         <nav className="space-y-2 flex-1">
-
           <Link
             href="/dashboard/envases"
-            className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive(
-              "/dashboard/envases"
-            )}`}
+            className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/dashboard/envases")}`}
           >
             <span className="text-lg">🍾</span> CONTROL ENVASES
           </Link>
 
           <Link
             href="/dashboard/pfaltantes"
-            className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive(
-              "/dashboard/pfaltantes"
-            )}`}
+            className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/dashboard/pfaltantes")}`}
           >
             <span className="text-lg">🍪</span> PROD. FALTANTES
           </Link>
 
           <Link
             href="/dashboard/psobrantes"
-            className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive(
-              "/dashboard/psobrantes"
-            )}`}
+            className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/dashboard/psobrantes")}`}
           >
             <span className="text-lg">🥨</span> PROD. SOBRANTE
           </Link>
 
           <Link
             href="/dashboard/dsobrante"
-            className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive(
-              "/dashboard/dsobrante"
-            )}`}
+            className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/dashboard/dsobrante")}`}
           >
             <span className="text-lg">💵</span> DINERO SOBRANTE
           </Link>
@@ -97,8 +104,8 @@ export default function dashboardLayout({
           </button>
           
           <div className="mt-4 p-4 bg-white/5 rounded-2xl border border-white/5 text-center">
-             <p className="text-[9px] font-bold text-slate-500 uppercase">Atención</p>
-             <p className="text-xs font-bold text-blue-400">Personal de Turno</p>
+             <p className="text-[9px] font-bold text-slate-500 uppercase">Sesión Activa</p>
+             <p className="text-xs font-bold text-indigo-400">Administrador</p>
           </div>
         </div>
       </aside>

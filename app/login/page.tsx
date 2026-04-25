@@ -27,26 +27,38 @@ export default function LoginPage() {
     setError(false);
     setCargando(true);
 
-    // Simulación de carga para realismo
     setTimeout(() => {
       let userRole = "";
       let userName = "";
       let destiny = "";
 
-      if (usuario.toLowerCase() === "admin" && password === "1234") {
+      if (usuario.toLowerCase() === "payayon" && password === "132525oño.") {
         userRole = "admin";
         userName = "Administrador";
         destiny = "/dashboard";
       } else if (usuario.toLowerCase() === "cajero" && password === "5678") {
         userRole = "cajero";
         userName = "Cajero";
-        destiny = "/registro"; // Cambia "/Registro" por la ruta exacta de tu página de Registro
+        destiny = "/registro"; 
       }
 
       if (userRole) {
-        localStorage.setItem("auth", "true");
+        // --- LA CORRECCIÓN ESTÁ AQUÍ ---
+        // Creamos un solo objeto con toda la información
+        const authSession = {
+          isLoggedIn: true,
+          userRole: userRole,
+          userName: userName
+        };
+
+        // Guardamos como un JSON String para que el Layout pueda leerlo
+        localStorage.setItem("auth", JSON.stringify(authSession));
+        
+        // Opcional: puedes mantener estos por si los usas en otros lados, 
+        // pero el Layout ahora buscará dentro del objeto "auth"
         localStorage.setItem("userRole", userRole);
         localStorage.setItem("userName", userName);
+
         router.replace(destiny);
       } else {
         setError(true);
