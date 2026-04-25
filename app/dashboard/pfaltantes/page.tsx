@@ -248,7 +248,8 @@ async function fetchDatos() {
             <table className="w-full border-collapse">
               <thead className="sticky top-0 bg-white z-10 shadow-sm">
                 <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  <th className="px-10 py-6 text-left border-b border-slate-50">Detalle</th>
+                  <th className="px-10 py-6 text-left border-b border-slate-50">Fecha</th>
+                  <th className="px-10 py-6 text-left border-b border-slate-50">Producto</th>
                   <th className="px-6 py-6 text-center border-b border-slate-50">Cant.</th>
                   <th className="px-6 py-6 text-right border-b border-slate-50">Monto</th>
                   <th className="px-10 py-6 text-center border-b border-slate-50">Acciones</th>
@@ -270,7 +271,9 @@ async function fetchDatos() {
                     ) : (
                       <>
                         <td className="px-10 py-5">
-                          <div className="text-[9px] font-black text-slate-400 font-mono">{item.fecha}</div>
+                          <div className="text-[12px] font-black text-slate-600 font-mono">{item.fecha}</div>
+                        </td>
+                        <td className="px-10 py-5">
                           <div className="font-black text-slate-900 uppercase text-sm italic">{item.producto}</div>
                         </td>
                         <td className="px-6 py-5 text-center font-black text-orange-600 text-base">{item.cantidad}</td>
