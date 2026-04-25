@@ -99,7 +99,9 @@ export default function EnvasesRegistroPage() {
     const { error } = await supabase.from("envases").insert([{
       ...nuevo,
       cliente: nuevo.cliente.toUpperCase(),
-      fecha: hoyStr,
+      // Cambiamos esto para que guarde fecha y hora completa
+      fecha: new Date().toISOString(), // Esto guarda: 2024-05-02T14:30:00Z 
+      //fecha: hoyStr,
       cantidad: parseInt(nuevo.cantidad),
       dinero: parseFloat(nuevo.dinero),
       devuelto: 0 
@@ -112,6 +114,25 @@ export default function EnvasesRegistroPage() {
       fetchEnvases();
     }
   }
+ 
+/*
+  const registroValido = nuevo.cliente.trim() !== "" && nuevo.envase !== "" && Number(nuevo.cantidad) > 0 && Number(nuevo.dinero) > 0;
+
+    async function guardarRegistro() {
+  if (!registroValido) return;
+  const { error } = await supabase.from("envases").insert([{
+    ...nuevo,
+    cliente: nuevo.cliente.toUpperCase(),
+    // Cambiamos esto para que guarde fecha y hora completa
+    fecha: new Date().toISOString(), // Esto guarda: 2024-05-02T14:30:00Z 
+    cantidad: parseInt(nuevo.cantidad),
+    dinero: parseFloat(nuevo.dinero),
+    devuelto: 0 
+  }]);
+  if (!error) {
+    setNuevo({ cliente: "", envase: "", cantidad: "", dinero: "", pago: "Efectivo" });
+    fetchEnvases();  }
+}*/
   
   const formatHora = (fechaStr: string) => {
   const fecha = new Date(fechaStr);
