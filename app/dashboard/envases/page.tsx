@@ -2,13 +2,16 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../../lib/supabase";
-import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
-export default function EnvasesPage() {
+export default function EnvasesRegistroPage() {
   const [registros, setRegistros] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [notificacion, setNotificacion] = useState<{ msg: string; tipo: 'success' | 'error' | 'info' } | null>(null);
+  const [confirmando, setConfirmando] = useState(false);
+  const [editando, setEditando] = useState<any | null>(null); 
+  const [notificacion, setNotificacion] = useState<string | null>(null);
+  const [nuevoId, setNuevoId] = useState<number | null>(null);
 
+  // --- LÓGICA DE FECHAS ---
   const dates = useMemo(() => {
     const hoy = new Date();
     const diaSemana = hoy.getDay();
@@ -22,26 +25,53 @@ export default function EnvasesPage() {
 
   const [fechaDesde, setFechaDesde] = useState(dates.lunes); 
   const [fechaHasta, setFechaHasta] = useState(dates.domingo);
-  const [filtroEstado, setFiltroEstado] = useState("todos");
+  const [filtroEstado, setFiltroEstado] = useState("pendientes");
 
   const esSemanaActual = fechaDesde === dates.lunes && fechaHasta === dates.domingo;
   const esMesActual = fechaDesde === dates.inicioMes && fechaHasta === dates.finMes;
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<any>(null);
+  const [nuevo, setNuevo] = useState({ cliente: "", envase: "", cantidad: "", dinero: "", pago: "Efectivo" });
 
-  const [nuevo, setNuevo] = useState({
-    cliente: "", envase: "", cantidad: "", dinero: "", pago: "Efectivo",
-  });
+  const formularioValido = useMemo(() => {
+    return (
+      nuevo.cliente.trim() !== "" && 
+      nuevo.envase !== "" && 
+      nuevo.cantidad !== "" && Number(nuevo.cantidad) > 0 &&
+      nuevo.dinero !== "" && Number(nuevo.dinero) >= 0
+    );
+  }, [nuevo]);
 
-  const registroValido = nuevo.cliente.trim() !== "" && nuevo.envase !== "" && Number(nuevo.cantidad) > 0 && Number(nuevo.dinero) > 0;
+  const stats = useMemo(() => {
+    const pendientes = registros.filter(r => r.devuelto === 0).length;
+    const entregados = registros.filter(r => r.devuelto === 1).length;
+    const totalGarantia = registros.filter(r => r.devuelto === 0).reduce((acc, curr) => acc + (Number(curr.dinero) || 0), 0);
+    const eficiencia = registros.length > 0 ? Math.round((entregados / registros.length) * 100) : 0;
+    
+    const cashPendiente = registros.filter(r => r.devuelto === 0 && r.pago === "Efectivo").reduce((acc, curr) => acc + (Number(curr.dinero) || 0), 0);
+    const yapePendiente = registros.filter(r => r.devuelto === 0 && r.pago === "Yape").reduce((acc, curr) => acc + (Number(curr.dinero) || 0), 0);
 
-  useEffect(() => { fetchEnvases(); }, [fechaDesde, fechaHasta, filtroEstado]);
+    return { pendientes, entregados, totalGarantia, eficiencia, cashPendiente, yapePendiente };
+  }, [registros]);
 
-  const mostrarAviso = (msg: string, tipo: 'success' | 'error' | 'info' = 'success') => {
-    setNotificacion({ msg, tipo });
-    setTimeout(() => setNotificacion(null), 3000);
-  };
+  const registrosFiltrados = useMemo(() => {
+    let filtrados = [...registros];
+    if (filtroEstado === "pendientes") filtrados = filtrados.filter(r => r.devuelto === 0);
+    if (filtroEstado === "devueltos") filtrados = filtrados.filter(r => r.devuelto === 1);
+    return filtrados;
+  }, [registros, filtroEstado]);
+
+  useEffect(() => { fetchEnvases(); }, [fechaDesde, fechaHasta]);
+
+  async function fetchEnvases() {
+    setLoading(true);
+    let query = supabase.from("envases").select("*").order("id", { ascending: false });
+    if (fechaDesde && fechaHasta) {
+      query = query.gte("fecha", `${fechaDesde}T00:00:00`).lte("fecha", `${fechaHasta}T23:59:59`);
+    }
+    const { data } = await query;
+    setRegistros(data || []);
+    setLoading(false);
+  }
 
   const togglePeriodo = () => {
     if (esSemanaActual) {
@@ -51,209 +81,105 @@ export default function EnvasesPage() {
     }
   };
 
-  async function fetchEnvases() {
-    setLoading(true);
-    let query = supabase.from("envases").select("*").order("id", { ascending: false });
-    if (fechaDesde && fechaHasta) query = query.gte("fecha", fechaDesde).lte("fecha", fechaHasta);
-    const { data } = await query;
-    setRegistros(data || []);
-    setLoading(false);
+  async function toggleDevuelto(id: number, estadoActual: number) {
+    const nuevoEstado = estadoActual === 1 ? 0 : 1;
+    const { error } = await supabase.from("envases").update({ devuelto: nuevoEstado }).eq("id", id);
+    if (!error) {
+      setNotificacion(`Estado actualizado`);
+      fetchEnvases();
+      setTimeout(() => setNotificacion(null), 3000);
+    }
   }
-
-  // CÁLCULO DE DINERO PENDIENTE (Suma de registros con devuelto === 0)
-  const dineroFaltante = registros
-    .filter(r => r.devuelto === 0)
-    .reduce((acc, curr) => acc + parseFloat(curr.dinero), 0);
-
-  const registrosFiltrados = useMemo(() => {
-    if (filtroEstado === "pendientes") return registros.filter(r => r.devuelto === 0);
-    if (filtroEstado === "devueltos") return registros.filter(r => r.devuelto === 1);
-    return registros;
-  }, [registros, filtroEstado]);
-  
-  const formatHora = (fechaStr: string) => {
-  const fecha = new Date(fechaStr);
-  // Usamos el locale de Perú para asegurar la hora correcta
-  return fecha.toLocaleTimeString('es-PE', { 
-    hour: '2-digit', 
-    minute: '2-digit', 
-    hour12: true 
-  }).toUpperCase();
-};
 
   async function guardarRegistro() {
-  if (!registroValido) return;
-  const { error } = await supabase.from("envases").insert([{
-    ...nuevo,
-    cliente: nuevo.cliente.toUpperCase(),
-    // Cambiamos esto para que guarde fecha y hora completa
-    fecha: new Date().toISOString(), // Esto guarda: 2024-05-02T14:30:00Z 
-    cantidad: parseInt(nuevo.cantidad),
-    dinero: parseFloat(nuevo.dinero),
-    devuelto: 0 
-  }]);
-  if (!error) {
-    setNuevo({ cliente: "", envase: "", cantidad: "", dinero: "", pago: "Efectivo" });
-    fetchEnvases();
-    mostrarAviso("Registro guardado con éxito");
-  }
-}
+    if (!formularioValido) return;
+    const { data, error } = await supabase.from("envases").insert([{
+      cliente: nuevo.cliente.toUpperCase(),
+      envase: nuevo.envase,
+      cantidad: Number(nuevo.cantidad),
+      dinero: Number(nuevo.dinero),
+      pago: nuevo.pago,
+      fecha: new Date().toISOString(),
+      devuelto: 0 
+    }]).select();
 
+    if (!error && data) {
+      setNotificacion(`Registro guardado exitosamente`);
+      setNuevo({ cliente: "", envase: "", cantidad: "", dinero: "", pago: "Efectivo" });
+      setConfirmando(false);
+      setNuevoId(data[0].id);
+      fetchEnvases();
+      setTimeout(() => setNuevoId(null), 8000);
+    }
+  }
+
+  // --- NUEVAS FUNCIONES DE EDICIÓN Y ELIMINACIÓN ---
   async function actualizarRegistro() {
+    if (!editando.cliente || !editando.envase) return;
     const { error } = await supabase.from("envases").update({
-      cliente: editingItem.cliente.toUpperCase(),
-      envase: editingItem.envase,
-      cantidad: parseInt(editingItem.cantidad),
-      dinero: parseFloat(editingItem.dinero),
-      pago: editingItem.pago
-    }).eq("id", editingItem.id);
-    if (!error) { 
-      setIsModalOpen(false); 
-      fetchEnvases(); 
-      mostrarAviso("Cambios actualizados");
+      cliente: editando.cliente.toUpperCase(),
+      envase: editando.envase,
+      cantidad: Number(editando.cantidad),
+      dinero: Number(editando.dinero),
+      pago: editando.pago
+    }).eq("id", editando.id);
+
+    if (!error) {
+      setNotificacion("Actualizado correctamente ✅");
+      setEditando(null);
+      fetchEnvases();
+      setTimeout(() => setNotificacion(null), 3000);
     }
   }
 
   async function eliminarRegistro(id: number) {
-    if (confirm("¿Eliminar definitivamente?")) {
-      const { error } = await supabase.from("envases").delete().eq("id", id);
-      if (!error) { 
-        setIsModalOpen(false); 
-        fetchEnvases(); 
-        mostrarAviso("Registro eliminado", "info");
-      }
+    if (!confirm("¿Seguro que deseas eliminar este registro permanentemente?")) return;
+    const { error } = await supabase.from("envases").delete().eq("id", id);
+    if (!error) {
+      setNotificacion("Registro eliminado 🗑️");
+      setEditando(null);
+      fetchEnvases();
+      setTimeout(() => setNotificacion(null), 3000);
     }
   }
 
-  async function cambiarEstadoDevuelto(id: number, nuevoEstado: number) {
-    await supabase.from("envases").update({ devuelto: nuevoEstado }).eq("id", id);
-    fetchEnvases();
-    mostrarAviso(nuevoEstado === 1 ? "Estado: Recibido ✔" : "Estado: Pendiente ⏳");
-  }
-
   const formatFechaCorta = (fechaStr: string) => {
-  // Creamos el objeto fecha (ahora sí soporta el formato completo)
-  const fecha = new Date(fechaStr);
-  
-  // Verificamos si la fecha es válida para evitar el NaN
-  if (isNaN(fecha.getTime())) {
-    return { dia: '00', mes: '---' };
-  }
-
-  const dia = fecha.getDate();
-  const mes = fecha.toLocaleString('es-ES', { month: 'short' })
-                   .replace('.', '')
-                   .toUpperCase();
-                   
-  return { dia, mes };
-};
-
-  const pendientes = registros.filter(r => r.devuelto === 0).length;
-  const entregados = registros.filter(r => r.devuelto === 1).length;
-  const porcentaje = registros.length > 0 ? Math.round((entregados / registros.length) * 100) : 0;
-  const dataGrafico = [{ name: "P", value: pendientes }, { name: "D", value: entregados }].filter(d => d.value > 0);
+    const fecha = new Date(fechaStr);
+    const hoy = new Date();
+    const esHoy = fecha.getDate() === hoy.getDate() && fecha.getMonth() === hoy.getMonth() && fecha.getFullYear() === hoy.getFullYear();
+    const dia = fecha.getDate();
+    const mes = fecha.toLocaleString('es-ES', { month: 'short' }).replace('.', '').toUpperCase();
+    return { dia, mes, esHoy };
+  };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 p-4 min-h-screen font-sans text-slate-900 relative">
-      
+    <>
       {notificacion && (
-        <div className={`fixed top-6 right-6 z-[100] px-6 py-3 rounded-2xl shadow-2xl border-2 flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300 ${
-          notificacion.tipo === 'success' ? 'bg-emerald-600 border-emerald-400 text-white' : 
-          notificacion.tipo === 'error' ? 'bg-rose-600 border-rose-400 text-white' : 
-          'bg-slate-800 border-slate-600 text-white'
-        }`}>
-          <span className="text-[10px] font-black uppercase tracking-widest">{notificacion.msg}</span>
+        <div className="fixed top-6 right-6 z-[1000] animate-in slide-in-from-right duration-500">
+          <div className="bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl border-l-4 border-emerald-500 flex items-center gap-3">
+            <p className="text-[11px] font-black uppercase tracking-wider">{notificacion}</p>
+          </div>
         </div>
       )}
 
-      {/* HEADER */}
-      <header className="flex flex-col md:flex-row justify-between items-center gap-6 border-b border-slate-100 pb-6">
-        <div>
-          <h2 className="text-[10px] font-bold text-blue-600 uppercase tracking-[0.3em] mb-1">Bodega Payaya</h2>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">
-            CONTROL<span className="text-blue-600">.ENVASES</span>
-          </h1>
-        </div>
-        
-        <div className="flex items-center gap-4 bg-slate-50 p-2 rounded-2xl border border-slate-200">
-          <div className="flex gap-4 px-3 border-r border-slate-200">
-            <div className="flex flex-col">
-              <span className="text-[9px] font-black uppercase text-slate-400 italic">Desde</span>
-              <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className="text-xs font-bold bg-transparent outline-none text-slate-700" />
+      {/* MODAL EDITAR */}
+      {editando && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm" onClick={() => setEditando(null)}></div>
+          <div className="bg-white rounded-[3rem] p-8 shadow-2xl border-t-[15px] border-blue-600 relative z-10 w-full max-w-md animate-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-6">
+               <h2 className="text-2xl font-black text-slate-900 italic uppercase">Editar Salida</h2>
+               <button onClick={() => setEditando(null)} className="text-slate-400 font-bold">✕</button>
             </div>
-            <div className="flex flex-col">
-              <span className="text-[9px] font-black uppercase text-slate-400 italic">Hasta</span>
-              <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className="text-xs font-bold bg-transparent outline-none text-slate-700" />
-            </div>
-          </div>
-          <div className="flex items-center gap-3 px-3 cursor-pointer select-none" onClick={togglePeriodo}>
-            <span className={`text-[10px] font-black uppercase transition-colors ${esSemanaActual ? 'text-emerald-600 font-bold' : 'text-slate-300'}`}>Semana</span>
-            <div className={`w-12 h-6 rounded-full relative transition-colors ${esMesActual ? 'bg-blue-600' : 'bg-emerald-500'}`}>
-                <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${esMesActual ? 'translate-x-6' : 'translate-x-0'}`} />
-            </div>
-            <span className={`text-[10px] font-black uppercase transition-colors ${esMesActual ? 'text-blue-600 font-bold' : 'text-slate-300'}`}>Mes</span>
-          </div>
-        </div>
-      </header>
-
-      {/* STATS */}
-      {/* STATS ACTUALIZADO CON TARJETA DE GARANTÍA */}
-<div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-  {/* Tarjeta 1: Cantidad Pendiente */}
-  <div className="bg-white p-5 rounded-2xl border-2 border-slate-50 shadow-sm text-center">
-    <span className="text-[10px] font-bold text-slate-500 uppercase mb-1 block tracking-widest">Botellas Pend.</span>
-    <span className="text-4xl font-black text-rose-600 tracking-tighter">{pendientes}</span>
-  </div>
-
-  {/* Tarjeta 2: Cantidad Recuperados */}
-  <div className="bg-white p-5 rounded-2xl border-2 border-slate-50 shadow-sm text-center">
-    <span className="text-[10px] font-bold text-slate-500 uppercase mb-1 block tracking-widest">Recuperados</span>
-    <span className="text-4xl font-black text-emerald-600 tracking-tighter">{entregados}</span>
-  </div>
-
-  {/* NUEVA TARJETA 3: DINERO DE GARANTÍA (Solo pendientes) */}
-  <div className="bg-amber-50 p-5 rounded-2xl border-2 border-amber-100 shadow-sm text-center">
-    <span className="text-[10px] font-bold text-amber-600 uppercase mb-1 block tracking-widest italic">Garantía x Devolver</span>
-    <div className="flex flex-col">
-      <span className="text-3xl font-black text-amber-700 tracking-tighter font-mono">
-        S/ {dineroFaltante.toFixed(2)}
-      </span>
-      <span className="text-[8px] font-black text-amber-500 uppercase mt-1">Capital en calle</span>
-    </div>
-  </div>
-
-  {/* Tarjeta 4: Eficiencia (Ahora ocupa 2 columnas en PC) */}
-  <div className="bg-slate-900 p-5 rounded-2xl flex items-center justify-between col-span-2 text-white">
-    <div>
-       <span className="text-[10px] font-bold opacity-70 uppercase block tracking-widest">Eficiencia</span>
-       <span className="text-4xl font-black tracking-tighter">{porcentaje}%</span>
-    </div>
-    <div className="w-16 h-16">
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie data={dataGrafico} innerRadius={20} outerRadius={30} dataKey="value" stroke="none">
-            <Cell fill="#fb7185" /><Cell fill="#34d399" />
-          </Pie>
-        </PieChart>
-      </ResponsiveContainer>
-    </div>
-  </div>
-</div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* FORM */}
-        <div className="lg:col-span-4 bg-slate-50 p-6 rounded-3xl border border-slate-200">
-          <h2 className="text-[10px] font-black text-slate-900 uppercase mb-4 tracking-widest italic border-b border-slate-200 pb-2">Nueva Salida</h2>
-          <div className="space-y-3">
-            <div>
-              <label className="text-[9px] font-bold text-slate-500 uppercase ml-1">Cliente</label>
-              <input placeholder="NOMBRE..." value={nuevo.cliente} onChange={(e) => setNuevo({ ...nuevo, cliente: e.target.value })} className="w-full bg-white p-3 rounded-xl text-sm font-bold border border-slate-200 outline-none uppercase focus:border-blue-500" />
-            </div>
-            <div>
-              <label className="text-[9px] font-bold text-slate-500 uppercase ml-1">Producto</label>
-              <select value={nuevo.envase} onChange={(e) => setNuevo({ ...nuevo, envase: e.target.value })} className="w-full bg-white p-3 rounded-xl text-sm font-bold border border-slate-200 outline-none">
-                <option value="">SELECCIONAR...</option>
-                <option value="Pirañita 192ml">Pirañita 192ml</option>
+            <form className="space-y-4 text-left" onSubmit={(e) => { e.preventDefault(); actualizarRegistro(); }}>
+              <div>
+                <label className="text-[10px] font-black text-blue-600 uppercase mb-1 block">Cliente</label>
+                <input required value={editando.cliente} onChange={(e) => setEditando({...editando, cliente: e.target.value})} className="w-full border-2 border-slate-100 bg-slate-50 p-3 rounded-xl text-slate-900 font-black outline-none focus:border-blue-600 uppercase" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-blue-600 uppercase mb-1 block">Envase</label>
+                <select required value={editando.envase} onChange={(e) => setEditando({...editando, envase: e.target.value})} className="w-full border-2 border-slate-100 bg-slate-50 p-3 rounded-xl text-slate-900 font-black outline-none focus:border-blue-600 uppercase">
+                    <option value="Pirañita 192ml">Pirañita 192ml</option>
                     <option value="Envase 296ml">Envase 296ml</option>
                     <option value="Inca Kola 1L">Inca Kola 1L</option>
                     <option value="Coca Cola 1L">Coca Cola 1L</option>
@@ -264,157 +190,227 @@ export default function EnvasesPage() {
                     <option value="Coca C. 2.5L">Coca C. 2.5L</option>
                     <option value="Cerveza 630ML">Cerveza 630ML</option>
                     <option value="Cerveza 1L">Cerveza 1L</option>
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[9px] font-bold text-slate-500 uppercase ml-1">Cant.</label>
-                <input type="number" placeholder="0" value={nuevo.cantidad} onChange={(e) => setNuevo({ ...nuevo, cantidad: e.target.value })} className="w-full bg-white p-3 rounded-xl text-sm font-bold border border-slate-200 outline-none" />
-              </div>
-              <div>
-                <label className="text-[9px] font-bold text-slate-500 uppercase ml-1">Monto S/</label>
-                <input type="number" placeholder="0.00" value={nuevo.dinero} onChange={(e) => setNuevo({ ...nuevo, dinero: e.target.value })} className="w-full bg-white p-3 rounded-xl text-sm font-bold border border-slate-200 outline-none font-mono" />
-              </div>
-            </div>
-            <button 
-              onClick={guardarRegistro} 
-              disabled={!registroValido}
-              className={`w-full font-black py-4 mt-2 rounded-xl uppercase text-xs tracking-widest transition-all ${registroValido ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
-            >
-              Registrar Salida
-            </button>
-          </div>
-        </div>
-
-        {/* TABLA CON INDICADOR DE DINERO FALTANTE */}
-        <div className="lg:col-span-8 bg-white border border-slate-200 rounded-3xl overflow-hidden flex flex-col h-[600px] shadow-sm">
-          <div className="bg-slate-900 p-4 px-6 flex justify-between items-center flex-wrap gap-4">
-            <h3 className="text-white font-black uppercase italic tracking-widest text-xs">
-               Historial de Movimientos
-            </h3>
-            
-            <div className="flex items-center gap-4">
-              {/* TOTAL DINERO FALTANTE */}
-              <div className="flex flex-col items-end">
-                <span className="text-[8px] font-black text-amber-500 uppercase tracking-tighter leading-none">Total por Devolver</span>
-                <span className="text-sm font-black text-white font-mono tracking-tighter">S/ {dineroFaltante.toFixed(2)}</span>
-              </div>
-
-              <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className="bg-white/10 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg border border-white/20 uppercase outline-none">
-                  <option className="text-slate-900" value="todos">Todos</option>
-                  <option className="text-slate-900" value="pendientes">Pendientes</option>
-                  <option className="text-slate-900" value="devueltos">Recibidos</option>
-              </select>
-            </div>
-          </div>
-          
-          <div className="flex-1 overflow-auto">
-            <table className="w-full">
-              <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10 text-left">
-                <tr className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                  <th className="px-6 py-4">Fecha</th>
-                  <th className="px-4 py-4">Cliente / Envase</th>
-                  <th className="px-4 py-4 text-center">Cant.</th>
-                  <th className="px-4 py-4 text-right">Monto</th>
-                  <th className="px-6 py-4 text-center">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {registrosFiltrados.map((item) => {
-                  const { dia, mes } = formatFechaCorta(item.fecha);
-                  return (
-                    <tr key={item.id} className="hover:bg-blue-50/40 transition-colors">
-                        <td className="px-6 py-6">
-                        <div className="flex flex-col items-center gap-1">
-                          {/* CUADRITO DE FECHA (Tu diseño original) */}
-                          <div className="flex flex-col items-center justify-center bg-slate-100 w-12 h-12 rounded-xl border border-slate-200">
-                            <span className="text-lg font-black text-slate-900 leading-none">{dia}</span>
-                            <span className="text-[8px] font-black text-blue-600 leading-none mt-1">{mes}</span>
-                          </div>
-                          
-                          {/* LA HORA JUSTO DEBAJO */}
-                          <span className="text-[11px] font-black text-slate-400 tracking-tighter">
-                            {formatHora(item.fecha)}
-                          </span>
-                        </div>
-                      </td>
-                      
-                      <td className="px-4 py-4">
-                        <div className="font-black text-slate-900 uppercase text-sm tracking-tight">{item.cliente}</div>
-                        <div className="text-[11px] font-bold text-slate-500 uppercase italic">{item.envase}</div>
-                      </td>
-                      <td className="px-4 py-4 text-center font-black text-blue-700 text-xl">{item.cantidad}</td>
-                      <td className="px-4 py-4 text-right">
-                        <div className="font-black text-slate-900 font-mono text-sm tracking-tighter">S/ {parseFloat(item.dinero).toFixed(2)}</div>
-                        <div className={`text-[10px] font-black uppercase ${item.pago === 'Yape' ? 'text-purple-600' : 'text-orange-600'}`}>{item.pago}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex gap-2 justify-center">
-                          <button 
-                            onClick={() => cambiarEstadoDevuelto(item.id, item.devuelto === 0 ? 1 : 0)} 
-                            className={`text-[10px] font-black px-4 py-2 rounded-xl border-2 transition-all ${item.devuelto === 0 ? 'bg-rose-50 text-rose-600 border-rose-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}
-                          >
-                            {item.devuelto === 0 ? 'PENDIENTE' : 'RECIBIDO'}
-                          </button>
-                          <button onClick={() => { setEditingItem(item); setIsModalOpen(true); }} className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all border border-transparent hover:border-slate-200">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {/* MODAL EDITOR */}
-      {isModalOpen && editingItem && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 border-t-[10px] border-blue-600 shadow-2xl">
-            <h2 className="text-sm font-black text-slate-900 mb-6 uppercase text-center tracking-widest italic">Editar Movimiento</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-1 tracking-widest">Nombre del Cliente</label>
-                <input value={editingItem.cliente} onChange={(e) => setEditingItem({ ...editingItem, cliente: e.target.value.toUpperCase() })} className="w-full bg-slate-50 p-4 rounded-xl font-bold uppercase text-xs border border-slate-200 outline-none focus:border-blue-500" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-1 tracking-widest">Tipo de Envase</label>
-                <select value={editingItem.envase} onChange={(e) => setEditingItem({ ...editingItem, envase: e.target.value })} className="w-full bg-slate-50 p-4 rounded-xl font-bold text-xs border border-slate-200 outline-none focus:border-blue-500">
-                  <option value="Coca Cola 296ml">Coca Cola 296ml</option>
-                  <option value="Pirañita">Pirañita</option>
-                  <option value="Inca Kola 1L">Inca Kola 1L</option>
-                  <option value="Coca Cola 1L">Coca Cola 1L</option>
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-1 tracking-widest">Cantidad</label>
-                  <input type="number" value={editingItem.cantidad} onChange={(e) => setEditingItem({ ...editingItem, cantidad: e.target.value })} className="w-full bg-slate-50 p-4 rounded-xl font-bold text-xs border border-slate-200 outline-none text-center" />
+                  <label className="text-[10px] font-black text-blue-600 uppercase mb-1 block">Cantidad</label>
+                  <input required type="number" value={editando.cantidad} onChange={(e) => setEditando({...editando, cantidad: e.target.value})} className="w-full border-2 border-slate-100 bg-slate-50 p-3 rounded-xl text-slate-900 font-black text-center outline-none focus:border-blue-600" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-1 tracking-widest">Monto (S/)</label>
-                  <input type="number" value={editingItem.dinero} onChange={(e) => setEditingItem({ ...editingItem, dinero: e.target.value })} className="w-full bg-slate-50 p-4 rounded-xl font-bold text-xs border border-slate-200 outline-none text-right font-mono" />
+                  <label className="text-[10px] font-black text-blue-600 uppercase mb-1 block">Garantía S/</label>
+                  <input required type="number" step="0.10" value={editando.dinero} onChange={(e) => setEditando({...editando, dinero: e.target.value})} className="w-full border-2 border-slate-100 bg-slate-50 p-3 rounded-xl text-slate-900 font-black text-center outline-none focus:border-blue-600" />
                 </div>
               </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-1 tracking-widest">Método de Pago</label>
-                <select value={editingItem.pago} onChange={(e) => setEditingItem({ ...editingItem, pago: e.target.value })} className="w-full bg-slate-50 p-4 rounded-xl font-bold text-xs border border-slate-200 outline-none focus:border-blue-500">
-                  <option value="Efectivo">EFECTIVO</option>
-                  <option value="Yape">YAPE</option>
-                </select>
+              <div className="flex bg-slate-100 p-1 rounded-xl">
+                  <button type="button" onClick={() => setEditando({...editando, pago: 'Efectivo'})} className={`flex-1 py-2 rounded-lg text-[10px] font-black transition-all ${editando.pago === 'Efectivo' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}>EFECTIVO</button>
+                  <button type="button" onClick={() => setEditando({...editando, pago: 'Yape'})} className={`flex-1 py-2 rounded-lg text-[10px] font-black transition-all ${editando.pago === 'Yape' ? 'bg-white text-purple-600 shadow-sm' : 'text-slate-400'}`}>YAPE</button>
               </div>
-              <div className="flex gap-3 pt-4">
-                <button onClick={() => setIsModalOpen(false)} className="flex-1 bg-slate-100 text-slate-500 font-black py-4 rounded-xl text-[10px] uppercase">Cancelar</button>
-                <button onClick={actualizarRegistro} className="flex-1 bg-blue-600 text-white font-black py-4 rounded-xl text-[10px] uppercase shadow-lg shadow-blue-200">Actualizar</button>
+              <div className="pt-4 flex flex-col gap-3">
+                <button type="submit" className="w-full bg-blue-600 text-white font-black py-4 rounded-xl shadow-lg uppercase text-xs tracking-widest border-b-4 border-blue-800">Guardar Cambios</button>
+                <button type="button" onClick={() => eliminarRegistro(editando.id)} className="text-rose-500 font-black text-[10px] uppercase py-2 hover:bg-rose-50 rounded-lg transition-colors">🗑️ Eliminar Registro Permanentemente</button>
               </div>
-              <button onClick={() => eliminarRegistro(editingItem.id)} className="w-full text-rose-500 text-[9px] font-black uppercase mt-4 hover:underline tracking-widest text-center">Eliminar permanentemente ✘</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {confirmando && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-md" onClick={() => setConfirmando(false)}></div>
+          <div className="bg-white rounded-[3rem] p-10 shadow-2xl border-t-[15px] border-blue-600 text-center relative z-10 animate-in zoom-in duration-300 max-w-sm w-full">
+            <h2 className="text-4xl font-black text-slate-900 uppercase italic mb-6 leading-none">REVISAR SALIDA</h2>
+            <div className="bg-slate-50 p-6 rounded-[2rem] border-2 border-slate-100 mb-8">
+              <p className="text-xl font-black text-slate-900 uppercase">{nuevo.cliente}</p>
+              <p className="text-2xl font-black text-blue-600 uppercase">{nuevo.cantidad} {nuevo.envase}</p>
+              <p className="text-2xl font-black text-emerald-600 font-mono">S/ {Number(nuevo.dinero).toFixed(2)}</p>
+            </div>
+            <div className="flex gap-4">
+              <button onClick={() => setConfirmando(false)} className="flex-1 bg-slate-100 text-slate-500 font-black py-5 rounded-2xl uppercase text-[11px]">CORREGIR</button>
+              <button onClick={guardarRegistro} className="flex-1 bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl uppercase text-[11px]">CONFIRMAR</button>
             </div>
           </div>
         </div>
       )}
-    </div>
+
+      <div className="max-w-7xl mx-auto space-y-6 p-4 min-h-screen bg-slate-50 text-slate-800">
+        
+        {/* HEADER */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pt-4">
+          <div className="text-left">
+            <h2 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.4em] mb-1 ml-1">Terminal de Control</h2>
+            <h1 className="text-5xl font-black text-slate-900 italic uppercase leading-none">ENVASES<span className="text-blue-600">.SYS</span></h1>
+          </div>
+
+          <div className="flex items-center gap-4 bg-white p-3 rounded-3xl border border-slate-200 shadow-sm">
+            <div className="flex gap-6 px-4 border-r border-slate-200 text-left">
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black text-blue-600 uppercase tracking-tighter mb-1">DESDE:</span>
+                <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className="text-xs font-black bg-transparent outline-none text-slate-900" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black text-blue-600 uppercase tracking-tighter mb-1">HASTA:</span>
+                <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className="text-xs font-black bg-transparent outline-none text-slate-900" />
+              </div>
+            </div>
+            <div className="flex items-center gap-3 px-3 cursor-pointer select-none" onClick={togglePeriodo}>
+              <span className={`text-[9px] font-black uppercase ${esSemanaActual ? 'text-emerald-600' : 'text-slate-300'}`}>Semana</span>
+              <div className={`w-10 h-5 rounded-full relative transition-colors ${esMesActual ? 'bg-blue-600' : 'bg-emerald-500'}`}>
+                  <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${esMesActual ? 'translate-x-5' : 'translate-x-0'}`} />
+              </div>
+              <span className={`text-[9px] font-black uppercase ${esMesActual ? 'text-blue-600' : 'text-slate-300'}`}>Mes</span>
+            </div>
+          </div>
+        </div>
+
+        {/* TARJETAS */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-left">
+            <span className="text-[10px] font-black text-slate-400 uppercase block mb-1">Pendientes</span>
+            <span className="text-4xl font-black text-rose-600 tracking-tighter">{stats.pendientes}</span>
+          </div>
+          <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-left">
+            <span className="text-[10px] font-black text-slate-400 uppercase block mb-1">Recuperadas</span>
+            <span className="text-4xl font-black text-emerald-600 tracking-tighter">{stats.entregados}</span>
+          </div>
+          <div className="bg-amber-50 p-5 rounded-[2rem] border border-amber-100 shadow-sm text-left">
+            <span className="text-[10px] font-black text-amber-600 uppercase block mb-1">Garantía x Devolver</span>
+            <span className="text-3xl font-black text-amber-700 font-mono italic">S/ {stats.totalGarantia.toFixed(2)}</span>
+          </div>
+          <div className="bg-slate-900 p-5 rounded-[2rem] flex items-center justify-between text-white shadow-xl">
+            <div className="text-left">
+               <span className="text-[9px] font-black opacity-70 uppercase block tracking-widest mb-1">Eficiencia</span>
+               <span className="text-4xl font-black tracking-tighter">{stats.eficiencia}%</span>
+            </div>
+            <div className="w-12 h-12 rounded-full border-[6px] border-rose-500 flex items-center justify-center relative bg-rose-500/20">
+               <div className="absolute inset-[-6px] rounded-full border-[6px] border-emerald-500" style={{ clipPath: `inset(0 0 ${100 - stats.eficiencia}% 0)` }}></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 pb-10">
+          {/* FORMULARIO */}
+          <div className="lg:col-span-4 self-start sticky top-4">
+            <div className="bg-white p-8 rounded-[3rem] shadow-2xl border-b-[12px] border-blue-600">
+              <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); if(formularioValido) setConfirmando(true); }}>
+                <div className="text-left">
+                  <label className="text-[10px] font-black text-blue-600 uppercase mb-2 block tracking-widest ml-1">Cliente *</label>
+                  <input required placeholder="Escriba el nombre..." value={nuevo.cliente} onChange={(e) => setNuevo({ ...nuevo, cliente: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-sm font-black text-slate-900 focus:border-blue-600 outline-none uppercase" />
+                </div>
+                <div className="text-left">
+                  <label className="text-[10px] font-black text-blue-600 uppercase mb-2 block tracking-widest ml-1">Envase *</label>
+                  <select required value={nuevo.envase} onChange={(e) => setNuevo({ ...nuevo, envase: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-sm font-black text-slate-900 outline-none focus:border-blue-600 uppercase cursor-pointer">
+                    <option value="">SELECCIONAR...</option>
+                    <option value="Pirañita 192ml">Pirañita 192ml</option>
+                    <option value="Envase 296ml">Envase 296ml</option>
+                    <option value="Inca Kola 1L">Inca Kola 1L</option>
+                    <option value="Coca Cola 1L">Coca Cola 1L</option>
+                    <option value="Inca K. 1.5L">Inca K. 1.5L</option>
+                    <option value="Coca C. 1.5L">Coca C. 1.5L</option>
+                    <option value="Inca Gordita">Inca Gordita</option>
+                    <option value="Inca K. 2.5L">Inca K. 2.5L</option>
+                    <option value="Coca C. 2.5L">Coca C. 2.5L</option>
+                    <option value="Cerveza 630ML">Cerveza 630ML</option>
+                    <option value="Cerveza 1L">Cerveza 1L</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2 text-left">
+                    <label className="text-[9px] font-black text-blue-600 block ml-1">CANTIDAD *</label>
+                    <input required type="number" placeholder="0" value={nuevo.cantidad} onChange={(e) => setNuevo({ ...nuevo, cantidad: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-center text-xl font-black text-slate-900 focus:border-blue-600 outline-none" />
+                  </div>
+                  <div className="space-y-2 text-left">
+                    <label className="text-[9px] font-black text-blue-600 block ml-1">S/ GARANTÍA *</label>
+                    <input required type="number" step="0.10" placeholder="0.00" value={nuevo.dinero} onChange={(e) => setNuevo({ ...nuevo, dinero: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-center text-xl font-black text-slate-900 focus:border-blue-600 outline-none font-mono" />
+                  </div>
+                </div>
+                <div className="flex bg-slate-100 p-1 rounded-2xl">
+                  <button type="button" onClick={() => setNuevo({...nuevo, pago: 'Efectivo'})} className={`flex-1 py-3 rounded-xl text-[10px] font-black transition-all ${nuevo.pago === 'Efectivo' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}>EFECTIVO</button>
+                  <button type="button" onClick={() => setNuevo({...nuevo, pago: 'Yape'})} className={`flex-1 py-3 rounded-xl text-[10px] font-black transition-all ${nuevo.pago === 'Yape' ? 'bg-white text-purple-600 shadow-sm' : 'text-slate-400'}`}>YAPE</button>
+                </div>
+                <button type="submit" disabled={!formularioValido} className={`w-full font-black py-6 rounded-2xl shadow-xl uppercase text-xs tracking-widest border-b-4 transition-all ${formularioValido ? 'bg-blue-600 text-white border-blue-900 active:border-b-0 active:translate-y-1' : 'bg-slate-200 text-slate-400 border-slate-300 cursor-not-allowed'}`}>REGISTRAR SALIDA</button>
+              </form>
+            </div>
+          </div>
+
+          {/* TABLA */}
+          <div className="lg:col-span-8 bg-white rounded-[3.5rem] shadow-xl border border-slate-100 flex flex-col overflow-hidden min-h-[600px]">
+            <div className="bg-slate-900 p-6 flex flex-col sm:flex-row justify-between items-center gap-6 border-b border-blue-500">
+              <div className="text-left w-full sm:w-auto">
+                <p className="text-[9px] font-black text-blue-400 uppercase mb-1">Monitor de Salidas</p>
+                <h3 className="text-lg font-black text-white uppercase italic tracking-tighter">HISTORIAL RECIENTE</h3>
+              </div>
+              <div className="flex gap-8">
+                <div className="flex flex-col text-left sm:text-right">
+                  <span className="text-[8px] font-black text-emerald-400 uppercase mb-1">Cash Pend.</span>
+                  <span className="text-xl font-black text-white font-mono">S/ {stats.cashPendiente.toFixed(2)}</span>
+                </div>
+                <div className="flex flex-col text-left sm:text-right">
+                  <span className="text-[8px] font-black text-purple-400 uppercase mb-1">Yape Pend.</span>
+                  <span className="text-xl font-black text-white font-mono">S/ {stats.yapePendiente.toFixed(2)}</span>
+                </div>
+              </div>
+              <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className="bg-blue-600 text-white text-[10px] font-black px-4 py-2.5 rounded-xl uppercase outline-none cursor-pointer">
+                <option value="pendientes">PENDIENTES</option>
+                <option value="devueltos">RECIBIDOS</option>
+                <option value="todos">VER TODOS</option>
+              </select>
+            </div>
+
+            <div className="flex-1 overflow-x-auto p-4">
+              <table className="w-full border-separate border-spacing-y-2">
+                <thead>
+                  <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">
+                    <th className="px-4 py-2">Fecha</th>
+                    <th className="px-4 py-2">Detalle</th>
+                    <th className="px-4 py-2 text-center">Cant.</th>
+                    <th className="px-4 py-2 text-right">Garantía</th>
+                    <th className="px-4 py-2 text-center">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {registrosFiltrados.map((item) => {
+                    const { dia, mes, esHoy } = formatFechaCorta(item.fecha);
+                    const esReciente = item.id === nuevoId;
+                    return (
+                      <tr key={item.id} className="transition-all">
+                        <td className={`px-4 py-4 rounded-l-3xl text-left ${esReciente ? 'bg-blue-600' : 'bg-slate-50'}`}>
+                          <div className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl border ${esReciente ? 'bg-white text-blue-600' : esHoy ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-900 border-slate-200'}`}>
+                            <span className="text-lg font-black leading-none">{dia}</span>
+                            <span className="text-[8px] font-black uppercase">{mes}</span>
+                          </div>
+                        </td>
+                        <td className={`px-4 py-4 text-left ${esReciente ? 'bg-blue-600 text-white' : 'bg-slate-50'}`}>
+                          <p className={`text-[10px] font-black uppercase mb-1 ${esReciente ? 'text-blue-100' : 'text-slate-400'}`}>{item.cliente}</p>
+                          <p className={`text-sm font-black uppercase italic ${esReciente ? 'text-white' : 'text-slate-900'}`}>{item.envase}</p>
+                        </td>
+                        <td className={`px-4 py-4 text-center ${esReciente ? 'bg-blue-600 text-white' : 'bg-slate-50'}`}>
+                          <span className={`text-xl font-black font-mono ${esReciente ? 'text-white' : 'text-blue-600'}`}>{item.cantidad}</span>
+                        </td>
+                        <td className={`px-4 py-4 text-right ${esReciente ? 'bg-blue-600 text-white' : 'bg-slate-50'}`}>
+                          <p className={`text-lg font-black font-mono ${esReciente ? 'text-white' : 'text-slate-900'}`}>S/ {Number(item.dinero).toFixed(2)}</p>
+                          <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded ${esReciente ? 'bg-blue-400 text-white' : (item.pago === 'Yape' ? 'bg-purple-100 text-purple-600' : 'bg-emerald-100 text-emerald-600')}`}>{item.pago}</span>
+                        </td>
+                        <td className={`px-4 py-4 rounded-r-3xl text-center ${esReciente ? 'bg-blue-600' : 'bg-slate-50'}`}>
+                          <div className="flex gap-2 justify-center">
+                            <button onClick={() => toggleDevuelto(item.id, item.devuelto)} className={`text-[10px] font-black px-4 py-2.5 rounded-xl border-2 transition-all ${item.devuelto === 1 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                                {item.devuelto === 1 ? 'RECIBIDO' : 'PENDIENTE'}
+                            </button>
+                            <button onClick={() => setEditando(item)} className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors">📝</button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {registrosFiltrados.length === 0 && !loading && (
+                <div className="p-20 text-center text-slate-300 font-black uppercase text-xs tracking-[0.3em]">Sin registros</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
