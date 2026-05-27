@@ -76,15 +76,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* SIDEBAR */}
       <aside className="w-full md:w-64 bg-slate-900 text-white p-6 flex flex-col shadow-xl z-20">
         <div className="mb-10">
+          <Link href="/dashboard/" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/dashboard/envases")}`}>
           <h1 className="text-2xl font-black tracking-tighter italic">REG. <span className="text-blue-500">PAYAYA</span></h1>
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Admin Panel</p>
+          </Link>
         </div>
         <nav className="space-y-2 flex-1">
           <Link href="/dashboard/envases" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/dashboard/envases")}`}>🍾 CONTROL ENVASES</Link>
-          <Link href="/dashboard/proveedores" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/dashboard/proveedores")}`}>🚚 GESTIÓN PROVEEDORES</Link>
           <Link href="/dashboard/pfaltantes" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/dashboard/pfaltantes")}`}>🍪 PROD. FALTANTES</Link>
           <Link href="/dashboard/psobrantes" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/dashboard/psobrantes")}`}>🥨 PROD. SOBRANTE</Link>
           <Link href="/dashboard/dsobrante" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/dashboard/dsobrante")}`}>💵 DINERO SOBRANTE</Link>
+          <Link href="/dashboard/proveedores" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/dashboard/proveedores")}`}>🚚 GESTIÓN PROVEEDORES</Link>
+          <Link href="/dashboard/abastecimiento" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/dashboard/abastecimiento")}`}>🚚 ABASTECIMIENTO</Link>
         </nav>
         <button onClick={() => { localStorage.removeItem("auth"); router.push("/login"); }} className="mt-auto w-full bg-slate-800 text-slate-400 py-4 rounded-2xl text-[10px] font-black uppercase">Cerrar Sesión 🚪</button>
       </aside>

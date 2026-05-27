@@ -3,98 +3,170 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../lib/supabase";
 
-// Definimos los productos usuales (puedes mover esto a la base de datos luego)
-const PRODUCTOS_BASE = [
-  { id: 'pilsen-630', nombre: 'Pilsen 630ml', icono: '🍺' },
-  { id: 'pilsen-lata', nombre: 'Pilsen Lata', icono: '🥫' },
-  { id: 'cristal-630', nombre: 'Cristal 630ml', icono: '🍺' },
-  { id: 'agua-sin-gas', nombre: 'Agua Sin Gas', icono: '💧' },
-  { id: 'gaseosa-2l', nombre: 'Gaseosa 2L', icono: '🥤' },
-];
+interface Producto {
+  id: string;
+  nombre: string;
+  categoria: string;
+  icono: string;
+  esta_falta: boolean;
+}
 
-export default function PanelAbastecimiento() {
-  const [estados, setEstados] = useState<Record<string, boolean>>({});
+export default function PanelBodegaOptimizado() {
+  const [productos, setProductos] = useState<Producto[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [filtroCategoria, setFiltroCategoria] = useState("TODOS");
+  const [busqueda, setBusqueda] = useState("");
 
-  // Cargar estados actuales desde Supabase
-  useEffect(() => {
-    const cargarEstados = async () => {
-      const { data } = await supabase.from("inventario_rapido").select("*");
-      if (data) {
-        const mapa: Record<string, boolean> = {};
-        data.forEach(item => mapa[item.producto_id] = item.esta_falta);
-        setEstados(mapa);
-      }
-      setCargando(false);
-    };
-    cargarEstados();
-  }, []);
-
-  const toggleEstado = async (id: string) => {
-    const nuevoEstado = !estados[id];
-    setEstados({ ...estados, [id]: nuevoEstado });
-
-    // Actualizar en Supabase (Upsert: inserta o actualiza)
-    await supabase.from("inventario_rapido").upsert({ 
-      producto_id: id, 
-      esta_falta: nuevoEstado,
-      ultima_actualizacion: new Date()
-    });
+  const cargarDatos = async () => {
+    setCargando(true);
+    const { data } = await supabase
+      .from("productos_abastecimiento")
+      .select("*")
+      .order("nombre", { ascending: true });
+    setProductos(data || []);
+    setCargando(false);
   };
 
-  if (cargando) return <div className="p-10 text-center font-black">CARGANDO PANEL...</div>;
+  useEffect(() => { cargarDatos(); }, []);
+
+  const toggleEstado = async (id: string, estadoActual: boolean) => {
+    const nuevoEstado = !estadoActual;
+    setProductos(prev => prev.map(p => p.id === id ? { ...p, esta_falta: nuevoEstado } : p));
+    await supabase.from("productos_abastecimiento").update({ esta_falta: nuevoEstado }).eq("id", id);
+  };
+
+  // Lógica de conteo para la barra de alerta
+  const totalFaltantes = productos.filter(p => p.esta_falta).length;
+
+  // Obtener categorías dinámicas para los filtros y las secciones
+  const categoriasUnicas = Array.from(new Set(productos.map(p => p.categoria)));
+  
+  const productosFiltrados = productos.filter(p => {
+    const coincideBusqueda = p.nombre.toLowerCase().includes(busqueda.toLowerCase());
+    const coincideFiltro = filtroCategoria === "TODOS" || p.categoria === filtroCategoria;
+    return coincideBusqueda && coincideFiltro;
+  });
+
+  if (cargando) return <div className="min-h-screen bg-slate-50 flex items-center justify-center font-black text-slate-400 animate-pulse uppercase tracking-widest">Sincronizando Inventario...</div>;
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-8">
-      <div className="header">
-        <h2 className="text-3xl font-black uppercase italic tracking-tighter text-slate-900">
-          Estado de <span className="text-indigo-600">Abastecimiento</span>
-        </h2>
-        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Toca el producto si hace falta en el slot</p>
-      </div>
+    <div className="min-h-screen bg-[#f1f5f9] text-slate-800 p-4 md:p-8">
+      <div className="max-w-6xl mx-auto space-y-8">
+        
+        {/* HEADER CON BUSCADOR Y BARRA DE ALERTA */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-200">
+          <div className="flex flex-col">
+            <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">
+              Control <span className="text-blue-600">Bodega</span>
+            </h2>
+            <div className="mt-4 flex items-center gap-3 bg-slate-100 p-2 rounded-2xl border border-slate-200">
+              <span className="pl-3 opacity-40">🔍</span>
+              <input 
+                type="text"
+                placeholder="BUSCAR PRODUCTO..."
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                className="bg-transparent border-none outline-none text-[11px] font-black uppercase tracking-widest w-full md:w-64 p-2"
+              />
+            </div>
+          </div>
 
-      {/* GRILLA DE BOTONES */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-        {PRODUCTOS_BASE.map((prod) => (
-          <button
-            key={prod.id}
-            onClick={() => toggleEstado(prod.id)}
-            className={`relative p-8 rounded-[2.5rem] border-4 transition-all flex flex-col items-center gap-4 shadow-xl active:scale-95 ${
-              estados[prod.id] 
-                ? 'bg-rose-600 border-rose-400 text-white animate-pulse' 
-                : 'bg-white border-slate-100 text-slate-900'
+          {/* LA BARRA DE NOTIFICACIÓN QUE TE GUSTABA */}
+          <div className={`w-full lg:w-auto px-8 py-5 rounded-[2rem] flex items-center justify-between gap-6 transition-all duration-500 ${
+            totalFaltantes > 0 
+            ? 'bg-rose-600 text-white shadow-xl shadow-rose-200 animate-pulse' 
+            : 'bg-emerald-500 text-white shadow-lg shadow-emerald-100'
+          }`}>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black opacity-80 uppercase tracking-[0.2em]">Estado General</span>
+              <span className="text-lg font-black uppercase italic tracking-tight">
+                {totalFaltantes > 0 ? `🚨 Faltan ${totalFaltantes} Productos` : '✅ Todo Abastecido'}
+              </span>
+            </div>
+            <div className="bg-white/20 p-3 rounded-2xl">
+              {totalFaltantes > 0 ? "⚠️" : "👍"}
+            </div>
+          </div>
+        </div>
+
+        {/* FILTROS RÁPIDOS */}
+        <div className="flex flex-wrap gap-2">
+          <button 
+            onClick={() => setFiltroCategoria("TODOS")}
+            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+              filtroCategoria === "TODOS" ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
             }`}
           >
-            <span className="text-5xl">{prod.icono}</span>
-            <span className="font-black uppercase text-[12px] tracking-tight">{prod.nombre}</span>
-            
-            {estados[prod.id] && (
-              <span className="absolute top-4 right-6 text-[10px] font-black bg-white text-rose-600 px-2 py-1 rounded-lg">
-                FALTA
-              </span>
-            )}
+            VER TODOS
           </button>
-        ))}
-      </div>
-
-      {/* LISTADO RESUMEN */}
-      <div className="mt-12 bg-slate-900 p-8 rounded-[3rem] shadow-2xl">
-        <h3 className="text-white font-black uppercase italic mb-6 border-b border-white/10 pb-4">
-          Resumen de Reposición
-        </h3>
-        <div className="space-y-3">
-          {PRODUCTOS_BASE.map((prod) => (
-            <div 
-              key={prod.id}
-              className={`flex items-center justify-between px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest ${
-                estados[prod.id] ? 'bg-rose-500/20 text-rose-400' : 'bg-white/5 text-white'
+          {categoriasUnicas.map(cat => (
+            <button 
+              key={cat}
+              onClick={() => setFiltroCategoria(cat)}
+              className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                filtroCategoria === cat ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-400'
               }`}
             >
-              <span>{prod.nombre}</span>
-              <span>{estados[prod.id] ? "⚠️ REQUERIDO" : "✅ OK"}</span>
-            </div>
+              {cat}
+            </button>
           ))}
         </div>
+
+        {/* LISTADO AGRUPADO POR CATEGORÍAS */}
+        <div className="space-y-12">
+          {categoriasUnicas.map(cat => {
+            const productosDeCategoria = productosFiltrados.filter(p => p.categoria === cat);
+            if (productosDeCategoria.length === 0) return null;
+
+            return (
+              <div key={cat} className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <h3 className="text-slate-400 font-black text-[11px] uppercase tracking-[0.3em]">{cat}</h3>
+                  <div className="h-[1px] flex-grow bg-slate-200"></div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {productosDeCategoria.map((prod) => (
+                    <button
+                      key={prod.id}
+                      onClick={() => toggleEstado(prod.id, prod.esta_falta)}
+                      className={`relative flex items-center gap-4 p-5 rounded-[2rem] border-2 transition-all active:scale-95 text-left ${
+                        prod.esta_falta 
+                        ? 'bg-white border-rose-500 shadow-lg shadow-rose-50' 
+                        : 'bg-white border-white shadow-sm hover:border-slate-200'
+                      }`}
+                    >
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner ${
+                        prod.esta_falta ? 'bg-rose-500 text-white' : 'bg-slate-50 text-slate-400'
+                      }`}>
+                        {prod.icono}
+                      </div>
+                      
+                      <div className="flex flex-col overflow-hidden">
+                        <span className={`text-[12px] font-black uppercase tracking-tight truncate ${
+                          prod.esta_falta ? 'text-rose-600' : 'text-slate-700'
+                        }`}>
+                          {prod.nombre}
+                        </span>
+                        <span className={`text-[9px] font-bold uppercase tracking-widest ${
+                          prod.esta_falta ? 'text-rose-400' : 'text-slate-300'
+                        }`}>
+                          {prod.esta_falta ? 'Faltante ⚠️' : 'Disponible ✓'}
+                        </span>
+                      </div>
+
+                      {/* Indicador de color lateral cuando falta */}
+                      {prod.esta_falta && (
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-rose-500 rounded-full"></div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
       </div>
     </div>
   );

@@ -110,6 +110,9 @@ export default function RegistroLayout({
           <Link href="/registro/dsobrantes" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/registro/dsobrantes")}`}>
             <span className="text-lg">💵</span> DINERO SOBRANTE
           </Link>
+           <Link href="/registro/abastecimiento" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/registro/proveedores")}`}>
+            <span className="text-lg">🚚</span> ABASTECIMIENTO
+          </Link>
           <Link href="/registro/proveedores" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/registro/proveedores")}`}>
             <span className="text-lg">🚚</span> PROVEEDORES
           </Link>

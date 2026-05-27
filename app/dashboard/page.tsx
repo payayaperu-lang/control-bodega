@@ -3,12 +3,16 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  Cell, AreaChart, Area, Legend
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell 
 } from "recharts";
 
-export default function DashboardPage() {
+interface DashboardProps {
+  setTab: (tab: string) => void;
+}
+
+export default function DashboardAdminElite({ setTab }: DashboardProps) {
   const [loading, setLoading] = useState(true);
+  const [alertasVivas, setAlertasVivas] = useState<any[]>([]);
   const [data, setData] = useState({
     faltantes: [] as any[],
     envases: [] as any[],
@@ -19,20 +23,30 @@ export default function DashboardPage() {
     const hoy = new Date();
     const diaSemana = hoy.getDay();
     const difLunes = hoy.getDate() - (diaSemana === 0 ? 6 : diaSemana - 1);
-    const lunes = new Date(new Date().setDate(difLunes)).toISOString().split('T')[0];
-    const domingo = new Date(new Date(lunes).setDate(new Date(lunes).getDate() + 6)).toISOString().split('T')[0];
-    const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split('T')[0];
-    const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().split('T')[0];
-    return { lunes, domingo, inicioMes, finMes };
+    
+    const lunesDate = new Date(hoy.setDate(difLunes));
+    const domingoDate = new Date(lunesDate);
+    domingoDate.setDate(lunesDate.getDate() + 6);
+
+    return {
+      lunes: lunesDate.toISOString().split('T')[0],
+      domingo: domingoDate.toISOString().split('T')[0],
+      inicioMes: new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split('T')[0],
+      finMes: new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().split('T')[0]
+    };
   }, []);
 
   const [fechaDesde, setFechaDesde] = useState(dates.lunes);
   const [fechaHasta, setFechaHasta] = useState(dates.domingo);
+  
   const esMes = fechaDesde === dates.inicioMes;
 
-  useEffect(() => { fetchAllData(); }, [fechaDesde, fechaHasta]);
+  const fetchAlertas = async () => {
+    const { data: faltas } = await supabase.from("productos_abastecimiento").select("*").eq("esta_falta", true);
+    setAlertasVivas(faltas || []);
+  };
 
-  async function fetchAllData() {
+  const fetchAllData = async () => {
     setLoading(true);
     try {
       const [falt, env, sob] = await Promise.all([
@@ -43,161 +57,197 @@ export default function DashboardPage() {
       setData({ faltantes: falt.data || [], envases: env.data || [], sobrantes: sob.data || [] });
     } catch (e) { console.error(e); }
     setLoading(false);
-  }
+  };
 
-  // --- LÓGICA DE NEGOCIO ---
+  useEffect(() => {
+    fetchAllData();
+    fetchAlertas();
+    const channel = supabase.channel('db_cambios').on('postgres_changes', { event: '*', schema: 'public', table: 'productos_abastecimiento' }, () => {
+      fetchAlertas();
+      fetchAllData();
+    }).subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [fechaDesde, fechaHasta]);
+
   const totalPerdida = data.faltantes.reduce((acc, curr) => acc + (Number(curr.cantidad || 0) * Number(curr.precio || 0)), 0);
   const totalSobrante = data.sobrantes.reduce((acc, curr) => acc + Number(curr.dinero || 0), 0);
   const balanceNeto = totalSobrante - totalPerdida;
-  
-  const envasesPendientes = data.envases.filter(e => e.devuelto === 0).length;
-  
-  const yapeTotal = data.envases.filter(e => e.pago === "Yape").reduce((acc, curr) => acc + Number(curr.dinero || 0), 0);
-  const efecTotal = data.envases.filter(e => e.pago === "Efectivo").reduce((acc, curr) => acc + Number(curr.dinero || 0), 0);
+  const envasesPendientes = data.envases.filter((e: any) => e.devuelto === 0).length;
+  const yapeTotal = data.envases.filter((e: any) => e.pago === "Yape").reduce((acc, curr) => acc + Number(curr.dinero || 0), 0);
+  const efecTotal = data.envases.filter((e: any) => e.pago === "Efectivo").reduce((acc, curr) => acc + Number(curr.dinero || 0), 0);
 
-  // Ranking Top 5 Fugas
-  const topFugas = [...data.faltantes]
-    .sort((a, b) => (b.cantidad * b.precio) - (a.cantidad * a.precio))
-    .slice(0, 5);
-
-  const togglePeriodo = () => {
-    if (!esMes) { setFechaDesde(dates.inicioMes); setFechaHasta(dates.finMes); }
-    else { setFechaDesde(dates.lunes); setFechaHasta(dates.domingo); }
-  };
-
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Cargando Dashboard...</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-black text-slate-900 bg-slate-100 animate-pulse uppercase tracking-[0.5em]">SISTEMA EN LINEA...</div>;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 p-6 min-h-screen bg-slate-100 font-sans text-slate-900">
+    <div className="max-w-7xl mx-auto space-y-10 p-6 min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
       
-      {/* HEADER */}
-      <header className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <div>
-          <h1 className="text-4xl font-black tracking-tighter italic uppercase">DASHBOARD<span className="text-blue-600">.PRO</span></h1>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">Viendo datos del: {fechaDesde} al {fechaHasta}</p>
+      {/* HEADER PRINCIPAL */}
+      <header className="relative overflow-hidden bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl">
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="bg-indigo-500 w-3 h-3 rounded-full animate-pulse"></span>
+              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-indigo-400">Panel de Control General</span>
+            </div>
+            <h1 className="text-5xl font-black tracking-tighter italic uppercase leading-none">CORE<span className="text-indigo-500">.DATA</span></h1>
+            <p className="text-xs font-bold opacity-50 mt-4 uppercase tracking-widest">
+              Mostrando: <span className="text-indigo-400">{esMes ? "Todo el Mes" : "Semana Completa"}</span> ({fechaDesde} al {fechaHasta})
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-4 justify-center">
+            <button 
+              onClick={() => { 
+                if (esMes) {
+                  setFechaDesde(dates.lunes); 
+                  setFechaHasta(dates.domingo);
+                } else {
+                  setFechaDesde(dates.inicioMes); 
+                  setFechaHasta(dates.finMes);
+                }
+              }}
+              className="bg-white/10 backdrop-blur-md border border-white/20 px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-all"
+            >
+              {esMes ? "Ver Semana Actual (Lun-Dom)" : "Ver Mes Completo"}
+            </button>
+            
+            {/* CORREGIDO: Botón Proveedores con setTab */}
+            <button 
+              onClick={() => setTab('proveedores')} 
+              className="bg-indigo-600 px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-500/20 hover:scale-105 transition-all text-center text-white"
+            >
+              Ver Proveedores 🚚
+            </button>
+          </div>
         </div>
-        <button onClick={togglePeriodo} className="bg-white px-6 py-3 rounded-2xl shadow-md font-black text-[10px] uppercase border border-slate-200 hover:bg-slate-50 transition-all">
-          Cambiar a: {esMes ? "Semana Actual" : "Mes Actual"}
-        </button>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 rounded-full blur-[100px] -mr-32 -mt-32"></div>
       </header>
 
-      {/* TARJETAS EXPLICATIVAS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className={`p-8 rounded-[3rem] shadow-2xl border-b-[10px] text-white ${balanceNeto >= 0 ? 'bg-emerald-500 border-emerald-700' : 'bg-rose-500 border-rose-700'}`}>
-          <span className="text-[10px] font-black uppercase opacity-60 block mb-1 tracking-widest">Balance Neto</span>
-          <div className="text-5xl font-black mb-2">S/ {balanceNeto.toFixed(2)}</div>
-          <p className="text-[9px] font-medium leading-tight opacity-80 uppercase italic">Es el dinero que realmente te queda libre restando los productos perdidos (faltantes).</p>
+      {/* MONITOR DE REPOSICIÓN VIVO */}
+      <section className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-200">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b border-slate-100 pb-6">
+          <div>
+            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-rose-500 mb-1">Alertas del Personal</h3>
+            <h2 className="text-2xl font-black uppercase tracking-tighter italic">Monitor de Reposición Urgente</h2>
+          </div>
+          {/* CORREGIDO: Botón Gestionar Inventario con setTab */}
+          <button 
+            onClick={() => setTab('abastecimiento')}
+            className="text-[10px] font-black uppercase bg-slate-100 px-6 py-3 rounded-xl hover:bg-slate-200 transition-all"
+          >
+            Gestionar Todo el Inventario →
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          {alertasVivas.length > 0 ? alertasVivas.map(a => (
+            <button 
+              key={a.id} 
+              onClick={() => setTab('abastecimiento')}
+              className="group bg-rose-50 border border-rose-100 px-6 py-3 rounded-2xl flex items-center gap-3 hover:bg-rose-600 text-left transition-all"
+            >
+              <span className="text-2xl group-hover:scale-125 transition-transform">{a.icono}</span>
+              <div>
+                <p className="text-[10px] font-black uppercase text-rose-600 group-hover:text-white leading-none">{a.nombre}</p>
+                <p className="text-[8px] font-bold text-rose-400 group-hover:text-rose-100 uppercase mt-1">Marcar como rellenado</p>
+              </div>
+            </button>
+          )) : (
+            <div className="w-full text-center py-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+              <p className="text-[10px] font-black uppercase text-emerald-600 tracking-widest">✅ No hay faltantes reportados por los trabajadores</p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* KPIs PRINCIPALES */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className={`relative overflow-hidden p-10 rounded-[3.5rem] text-white shadow-2xl transition-all ${balanceNeto >= 0 ? 'bg-emerald-500 shadow-emerald-500/20' : 'bg-rose-500 shadow-rose-500/20'}`}>
+          <span className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Balance Neto del Periodo</span>
+          <div className="text-6xl font-black my-4 tracking-tighter italic">S/ {balanceNeto.toFixed(2)}</div>
+          <div className="text-[9px] font-bold uppercase leading-relaxed bg-black/10 p-4 rounded-2xl border border-white/10">
+            Dinero real disponible en caja después de descontar el valor de los productos perdidos (fugas).
+          </div>
         </div>
 
-        <div className="bg-white p-8 rounded-[3rem] shadow-xl border-b-[10px] border-slate-900">
-          <span className="text-[10px] font-black text-slate-400 uppercase block mb-1 tracking-widest italic">Pérdida de Inventario</span>
-          <div className="text-5xl font-black text-rose-500 mb-2">S/ {totalPerdida.toFixed(2)}</div>
-          <p className="text-[9px] font-medium leading-tight text-slate-400 uppercase italic">Dinero estancado o perdido en productos que faltaron en el conteo.</p>
+        <div className="bg-white p-10 rounded-[3.5rem] shadow-xl border border-slate-200 relative overflow-hidden group">
+          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Pérdida por Inventario</span>
+          <div className="text-6xl font-black my-4 tracking-tighter italic text-rose-600">S/ {totalPerdida.toFixed(2)}</div>
+          <div className="text-[9px] font-bold uppercase leading-relaxed text-slate-400 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+            Suma total del valor de los productos que el personal reportó como faltantes.
+          </div>
+          <div className="absolute bottom-0 right-0 text-9xl font-black text-slate-50 -mb-10 -mr-5 opacity-50 pointer-events-none group-hover:text-rose-50 transition-colors">!</div>
         </div>
 
-        <div className="bg-white p-8 rounded-[3rem] shadow-xl border-b-[10px] border-blue-600">
-          <span className="text-[10px] font-black text-slate-400 uppercase block mb-1 tracking-widest italic">Envases x Recuperar</span>
-          <div className="text-5xl font-black text-blue-600 mb-2">{envasesPendientes}</div>
-          <p className="text-[9px] font-medium leading-tight text-slate-400 uppercase italic">Botellas o envases que clientes aún no devuelven. Representa stock fuera.</p>
+        <div className="bg-white p-10 rounded-[3.5rem] shadow-xl border border-slate-200">
+          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Envases por Recuperar</span>
+          <div className="text-6xl font-black my-4 tracking-tighter italic text-blue-600">{envasesPendientes}</div>
+          <div className="text-[9px] font-bold uppercase leading-relaxed text-slate-400 bg-blue-50 p-4 rounded-2xl border border-blue-100">
+            Cantidad de botellas/envases que salieron de la bodega y aún no han sido devueltos por clientes.
+          </div>
         </div>
       </div>
 
+      {/* ANÁLISIS GRÁFICO */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* GRÁFICO DE YAPE VS EFECTIVO (CORREGIDO) */}
-        <div className="lg:col-span-4 bg-white p-8 rounded-[3rem] shadow-xl border border-slate-200">
-          <h3 className="text-xs font-black uppercase mb-6 tracking-widest italic border-b pb-4 text-purple-600">Caja por Método de Pago</h3>
-          <div className="h-[250px]">
+        <div className="lg:col-span-5 bg-white p-10 rounded-[3.5rem] shadow-xl border border-slate-200">
+          <h3 className="text-xs font-black uppercase mb-10 tracking-[0.2em] border-b pb-4 inline-block">Caja: Yape vs Efectivo</h3>
+          <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={[
-                { name: 'Yape', total: yapeTotal },
-                { name: 'Efectivo', total: efecTotal }
-              ]}>
+              <BarChart data={[{ name: 'YAPE', total: yapeTotal }, { name: 'EFECTIVO', total: efecTotal }]}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900}} />
-                <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '1rem', border: 'none'}} />
-                <Bar dataKey="total" radius={[8, 8, 8, 8]} barSize={50}>
-                  <Cell fill="#7c3aed" /> {/* Color Yape */}
-                  <Cell fill="#10b981" /> {/* Color Efectivo */}
+                <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '1.5rem', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
+                <Bar dataKey="total" radius={[15, 15, 15, 15]} barSize={80}>
+                  <Cell fill="#7c3aed" />
+                  <Cell fill="#059669" />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="mt-4 flex justify-between text-[10px] font-black uppercase italic">
-            <span className="text-purple-600">Yape: S/ {yapeTotal.toFixed(2)}</span>
-            <span className="text-emerald-600">Efectivo: S/ {efecTotal.toFixed(2)}</span>
+          <div className="grid grid-cols-2 gap-4 mt-8">
+            <div className="p-4 bg-indigo-50 rounded-2xl text-center">
+              <p className="text-[9px] font-black uppercase text-indigo-400 mb-1">Total Yape</p>
+              <p className="text-xl font-black text-slate-900 font-mono">S/ {yapeTotal.toFixed(2)}</p>
+            </div>
+            <div className="p-4 bg-emerald-50 rounded-2xl text-center">
+              <p className="text-[9px] font-black uppercase text-emerald-400 mb-1">Total Efectivo</p>
+              <p className="text-xl font-black text-slate-900 font-mono">S/ {efecTotal.toFixed(2)}</p>
+            </div>
           </div>
         </div>
 
-        {/* TOP 5 FUGAS */}
-        <div className="lg:col-span-8 bg-white p-8 rounded-[3rem] shadow-xl border border-slate-200">
-          <h3 className="text-xs font-black uppercase mb-6 tracking-widest italic border-b pb-4 text-rose-500">Ranking: Top 5 Productos en Fuga</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                  <th className="pb-4">Producto</th>
-                  <th className="pb-4">Cantidad</th>
-                  <th className="pb-4">Precio Unit.</th>
-                  <th className="pb-4 text-right">Pérdida Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {topFugas.map((f, i) => (
-                  <tr key={i} className="group hover:bg-slate-50 transition-colors">
-                    <td className="py-4 text-xs font-black uppercase text-slate-700">{f.producto}</td>
-                    <td className="py-4 text-xs font-bold text-slate-500">{f.cantidad} uds</td>
-                    <td className="py-4 text-right text-xs font-black text-rose-500 font-mono">-S/ {(f.cantidad * f.precio).toFixed(2)}</td>
-                  </tr>
-                ))}
-                {topFugas.length === 0 && (
-                  <tr><td colSpan={4} className="py-8 text-center text-[10px] font-black uppercase text-slate-300 italic">No hay fugas registradas en este periodo</td></tr>
-                )}
-              </tbody>
-            </table>
+        <div className="lg:col-span-7 bg-white p-10 rounded-[3.5rem] shadow-xl border border-slate-200">
+          <div className="flex justify-between items-center mb-10 border-b pb-4">
+            <h3 className="text-xs font-black uppercase tracking-[0.2em]">Ranking Crítico: Top Fugas</h3>
+            <span className="text-[9px] font-black text-rose-500 uppercase px-3 py-1 bg-rose-50 rounded-full">Alerta de Pérdida</span>
+          </div>
+          <div className="space-y-4">
+            {data.faltantes.length > 0 ? [...data.faltantes]
+              .sort((a, b) => (b.cantidad * b.precio) - (a.cantidad * a.precio))
+              .slice(0, 5)
+              .map((f, i) => (
+                <div key={i} className="flex justify-between items-center p-5 bg-slate-50 rounded-[2rem] border border-slate-100 hover:border-rose-200 transition-colors group">
+                  <div className="flex items-center gap-4">
+                    <span className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-lg shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">📉</span>
+                    <div>
+                      <p className="text-xs font-black uppercase text-slate-900 leading-none">{f.producto}</p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase mt-1 tracking-widest">{f.cantidad} UNIDADES PERDIDAS</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-rose-600 font-mono">- S/ {(f.cantidad * f.precio).toFixed(2)}</p>
+                    <p className="text-[8px] font-black text-slate-300 uppercase italic">Merma Directa</p>
+                  </div>
+                </div>
+              )) : (
+              <div className="h-full flex flex-col items-center justify-center py-20 text-slate-300">
+                <span className="text-4xl mb-4 opacity-30">🛡️</span>
+                <p className="text-[10px] font-black uppercase tracking-[0.3em]">Inventario sin discrepancias</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* TABLA DE ÚLTIMOS MOVIMIENTOS GENERALES */}
-      <div className="bg-slate-900 rounded-[3rem] p-10 text-white shadow-2xl">
-        <div className="flex justify-between items-center mb-8">
-          <h3 className="text-xs font-black uppercase tracking-widest italic text-blue-400 underline decoration-blue-500 underline-offset-8">Historial Crítico Reciente</h3>
-          <span className="text-[9px] font-bold opacity-40 uppercase">Viendo últimos registros de la semana</span>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="space-y-4">
-            <h4 className="text-[10px] font-black uppercase opacity-40 tracking-[0.2em] mb-4">Últimos Envases</h4>
-            {data.envases.slice(-3).reverse().map((e, i) => (
-              <div key={i} className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border-l-4 border-orange-500">
-                <div>
-                  <div className="text-[11px] font-black uppercase">{e.cliente || 'S/N'}</div>
-                  <div className="text-[9px] font-bold opacity-50 uppercase italic">{e.pago}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs font-black text-orange-500 font-mono">S/ {Number(e.dinero || 0).toFixed(2)}</div>
-                  <div className="text-[8px] font-black opacity-30">{e.fecha}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="space-y-4">
-            <h4 className="text-[10px] font-black uppercase opacity-40 tracking-[0.2em] mb-4">Últimos Faltantes</h4>
-            {data.faltantes.slice(-3).reverse().map((f, i) => (
-              <div key={i} className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border-l-4 border-rose-500">
-                <div>
-                  <div className="text-[11px] font-black uppercase">{f.producto}</div>
-                  <div className="text-[9px] font-bold opacity-50 uppercase italic">{f.cantidad} unidades</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs font-black text-rose-500 font-mono">-S/ {(f.cantidad * f.precio).toFixed(2)}</div>
-                  <div className="text-[8px] font-black opacity-30">{f.fecha}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
