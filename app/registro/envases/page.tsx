@@ -156,7 +156,7 @@ export default function EnvasesRegistroPage() {
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-6 pt-4">
           <div className="text-left">
-            <h2 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.4em] mb-1 ml-1">Terminal de Control</h2>
+            <h2 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.4em] mb-1 ml-1">Terminal </h2>
             <h1 className="text-5xl font-black text-slate-900 italic uppercase leading-none">ENVASES<span className="text-blue-600">.SYS</span></h1>
           </div>
 
@@ -195,7 +195,7 @@ export default function EnvasesRegistroPage() {
                   <label className="text-[10px] font-black text-blue-600 uppercase mb-2 block tracking-widest ml-1">Cliente *</label>
                   <input 
                     required
-                    placeholder="NOMBRE DEL CLIENTE..." 
+                    placeholder="NOMBRE..." 
                     value={nuevo.cliente} 
                     onChange={(e) => setNuevo({ ...nuevo, cliente: e.target.value })} 
                     className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-sm font-black text-slate-900 focus:border-blue-600 outline-none uppercase" 
@@ -216,6 +216,7 @@ export default function EnvasesRegistroPage() {
                     <option value="Coca Cola 1L">Coca Cola 1L</option>
                     <option value="Inca K. 1.5L">Inca K. 1.5L</option>
                     <option value="Coca C. 1.5L">Coca C. 1.5L</option>
+                    <option value="Fanta 1.5L">Fanta 1.5L</option>
                     <option value="Inca Gordita">Inca Gordita</option>
                     <option value="Inca K. 2.5L">Inca K. 2.5L</option>
                     <option value="Coca C. 2.5L">Coca C. 2.5L</option>
@@ -271,17 +272,16 @@ export default function EnvasesRegistroPage() {
           <div className="lg:col-span-8 bg-white rounded-[3.5rem] shadow-xl border border-slate-100 flex flex-col overflow-hidden min-h-[600px]">
             <div className="bg-slate-900 p-6 flex flex-col sm:flex-row justify-between items-center gap-6 border-b border-blue-500">
               <div className="text-left w-full sm:w-auto">
-                <p className="text-[9px] font-black text-blue-400 uppercase mb-1">Monitor de Salidas</p>
                 <h3 className="text-lg font-black text-white uppercase italic tracking-tighter">HISTORIAL RECIENTE</h3>
               </div>
 
               <div className="flex gap-8">
                 <div className="flex flex-col text-right">
-                  <span className="text-[8px] font-black text-emerald-400 uppercase leading-none mb-1">Cash Pend.</span>
+                  <span className="text-[8px] font-black text-emerald-400 uppercase leading-none mb-1">EFECTIVO.</span>
                   <span className="text-xl font-black text-white font-mono tracking-tighter">S/ {stats.cashPendiente.toFixed(2)}</span>
                 </div>
                 <div className="flex flex-col text-right">
-                  <span className="text-[8px] font-black text-purple-400 uppercase leading-none mb-1">Yape Pend.</span>
+                  <span className="text-[8px] font-black text-purple-400 uppercase leading-none mb-1">YAPE</span>
                   <span className="text-xl font-black text-white font-mono tracking-tighter">S/ {stats.yapePendiente.toFixed(2)}</span>
                 </div>
               </div>
