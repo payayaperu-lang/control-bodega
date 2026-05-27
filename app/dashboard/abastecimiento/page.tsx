@@ -47,8 +47,8 @@ export default function PanelAdminConMonitoreo() {
     const canalUrgencias = supabase
       .channel("cambios-inventario-admin")
       .on(
-        "postgres_changes",
-        { event: "*", scheme: "public", table: "productos_abastecimiento" },
+        "postgres_changes" as any, // CORREGIDO: "as any" evita que TypeScript detenga el build de Vercel
+        { event: "*", schema: "public", table: "productos_abastecimiento" },
         () => {
           cargarDatos(); // Recargar datos si un trabajador cambia un estado
         }
@@ -128,12 +128,13 @@ export default function PanelAdminConMonitoreo() {
               </h3>
             </div>
             <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider ${
-              productosFaltantes.length > 0 ? "bg-rose-600 text-white animate-pulse" : "bg-emerald-505 bg-emerald-500 text-white"
+              productosFaltantes.length > 0 ? "bg-rose-600 text-white animate-pulse" : "bg-emerald-500 text-white"
             }`}>
               {productosFaltantes.length > 0 ? `${productosFaltantes.length} Por Reponer` : "Tienda OK"}
             </span>
           </div>
 
+          {/* CORREGIDO: Eliminada clase duplicada errónea bg-emerald-505 */}
           {productosFaltantes.length === 0 ? (
             <div className="py-6 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">
               ✅ Los trabajadores no han reportado faltas en este momento.
@@ -160,6 +161,7 @@ export default function PanelAdminConMonitoreo() {
           {/* COLUMNA IZQUIERDA: FORMULARIO DE EDICIÓN / REGISTRO */}
           <div className="lg:col-span-5">
             <form onSubmit={guardarProducto} className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-200 sticky top-8">
+              {/* Manteniendo el título dinámico según el flujo */}
               <h3 className="text-xs font-black uppercase tracking-widest mb-6 text-indigo-500">
                 {editandoId ? "🔧 Modificar Producto" : "📝 Registrar Nuevo Producto"}
               </h3>
@@ -187,7 +189,7 @@ export default function PanelAdminConMonitoreo() {
                   </datalist>
                 </div>
 
-                {/* SELECTOR DE ICONOS MEJORADO */}
+                {/* SELECTOR DE ICONOS */}
                 <div className="relative">
                   <label className="block text-xs font-black text-slate-900 uppercase mb-2">Asignar Icono</label>
                   <button 
