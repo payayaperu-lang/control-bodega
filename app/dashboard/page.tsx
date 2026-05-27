@@ -1,16 +1,14 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell 
 } from "recharts";
 
-interface DashboardProps {
-  setTab: (tab: string) => void;
-}
-
-export default function DashboardAdminElite({ setTab }: DashboardProps) {
+export default function DashboardAdminElite() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [alertasVivas, setAlertasVivas] = useState<any[]>([]);
   const [data, setData] = useState({
@@ -110,9 +108,9 @@ export default function DashboardAdminElite({ setTab }: DashboardProps) {
               {esMes ? "Ver Semana Actual (Lun-Dom)" : "Ver Mes Completo"}
             </button>
             
-            {/* CORREGIDO: Botón Proveedores con setTab */}
+            {/* CORREGIDO: Redirección directa a la carpeta de Proveedores */}
             <button 
-              onClick={() => setTab('proveedores')} 
+              onClick={() => router.push('/dashboard/proveedores')} 
               className="bg-indigo-600 px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-500/20 hover:scale-105 transition-all text-center text-white"
             >
               Ver Proveedores 🚚
@@ -129,9 +127,9 @@ export default function DashboardAdminElite({ setTab }: DashboardProps) {
             <h3 className="text-xs font-black uppercase tracking-[0.2em] text-rose-500 mb-1">Alertas del Personal</h3>
             <h2 className="text-2xl font-black uppercase tracking-tighter italic">Monitor de Reposición Urgente</h2>
           </div>
-          {/* CORREGIDO: Botón Gestionar Inventario con setTab */}
+          {/* CORREGIDO: Redirección directa a la carpeta de Abastecimiento */}
           <button 
-            onClick={() => setTab('abastecimiento')}
+            onClick={() => router.push('/dashboard/abastecimiento')}
             className="text-[10px] font-black uppercase bg-slate-100 px-6 py-3 rounded-xl hover:bg-slate-200 transition-all"
           >
             Gestionar Todo el Inventario →
@@ -141,7 +139,7 @@ export default function DashboardAdminElite({ setTab }: DashboardProps) {
           {alertasVivas.length > 0 ? alertasVivas.map(a => (
             <button 
               key={a.id} 
-              onClick={() => setTab('abastecimiento')}
+              onClick={() => router.push('/dashboard/abastecimiento')}
               className="group bg-rose-50 border border-rose-100 px-6 py-3 rounded-2xl flex items-center gap-3 hover:bg-rose-600 text-left transition-all"
             >
               <span className="text-2xl group-hover:scale-125 transition-transform">{a.icono}</span>
