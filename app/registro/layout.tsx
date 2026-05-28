@@ -14,6 +14,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [activeTab, setActiveTab] = useState<"logistica" | "abastecimiento">("logistica");
   const [subFilterLogistica, setSubFilterLogistica] = useState<"pedidos" | "entregas">("pedidos");
   
+  // ESTADOS GAMIFICACION
+  const [xp, setXp] = useState(0);
+
+  // Función para calcular rango
+  const getRango = (puntos: number) => {
+    if (puntos < 100) return { nombre: "Aprendiz", color: "text-slate-400" };
+    if (puntos < 500) return { nombre: "Bodeguero Pro", color: "text-blue-500" };
+    return { nombre: "Maestro Bodeguero", color: "text-amber-500" };
+  };
+
+  // Función para sumar puntos (llámala dentro de tus funciones de acción)
+  const sumarXP = async (cantidad: number) => {
+    const nuevaXP = xp + cantidad;
+    setXp(nuevaXP);
+    // Opcional: Aquí podrías guardar esto en una tabla de 'usuario_stats' en Supabase
+  };
+
   // ESTADO PARA PASAR ALERTAS (TOASTS)
   const [toast, setToast] = useState<{ mensaje: string; tipo: "success" | "info" } | null>(null);
 
@@ -21,7 +38,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [notificaciones, setNotificaciones] = useState<any[]>([]);
   const [faltantes, setFaltantes] = useState<any[]>([]);
 
-useEffect(() => {
+  useEffect(() => {
     const authData = localStorage.getItem("auth");
     
     // Si no hay nada en localStorage, al login
@@ -69,63 +86,23 @@ useEffect(() => {
         // --- HOY ---
         if (p.dia_pedido === hoyNombre) {
           nuevasNotifs.push({ 
-            id: `h-p-${p.id}`, 
-            dbId: p.id,
-            msg: `${p.nombre}`, 
-            tag: 'HOY', 
-            clase: 'pedidos', 
-            tipo: 'hoy', 
-            orden: 1, 
-            icono: '📝', 
-            color: p.color, 
-            completado: p.pedido_hecho,
-            link: `/registro/proveedores?proveedor=${p.nombre}` 
+            id: `h-p-${p.id}`, dbId: p.id,msg: `${p.nombre}`, tag: 'HOY', clase: 'pedidos', tipo: 'hoy', orden: 1, icono: '📝', completado: p.pedido_hecho, link: `/registro/proveedores?proveedor=${p.nombre}` 
           });
         }
         if (p.dia_entrega === hoyNombre) {
           nuevasNotifs.push({ 
-            id: `h-e-${p.id}`, 
-            dbId: p.id,
-            msg: `Llega: ${p.nombre}`, 
-            tag: 'HOY', 
-            clase: 'entregas', 
-            tipo: 'hoy', 
-            orden: 1, 
-            icono: '🚚', 
-            color: p.color, 
-            completado: p.entrega_recibida,
-            link: null 
+            id: `h-e-${p.id}`, dbId: p.id,msg: `${p.nombre}`, tag: 'HOY', clase: 'entregas', tipo: 'hoy', orden: 1, icono: '🚚', completado: p.entrega_recibida,link: null 
           });
         }
         // --- MAÑANA ---
         if (p.dia_pedido === mañanaNombre) {
           nuevasNotifs.push({ 
-            id: `m-p-${p.id}`, 
-            dbId: p.id,
-            msg: `${p.nombre}`, 
-            tag: 'MAÑANA', 
-            clase: 'pedidos', 
-            tipo: 'mañana', 
-            orden: 2, 
-            icono: '⏳', 
-            color: p.color, 
-            completado: p.pedido_hecho,
-            link: `/registro/proveedores?proveedor=${p.nombre}` 
+            id: `m-p-${p.id}`, dbId: p.id,msg: `${p.nombre}`, tag: 'MAÑANA', clase: 'pedidos', tipo: 'mañana', orden: 2, icono: '⏳', completado: p.pedido_hecho, link: `/registro/proveedores?proveedor=${p.nombre}` 
           });
         }
         if (p.dia_entrega === mañanaNombre) {
           nuevasNotifs.push({ 
-            id: `m-e-${p.id}`, 
-            dbId: p.id,
-            msg: `Entrega: ${p.nombre}`, 
-            tag: 'MAÑANA', 
-            clase: 'entregas', 
-            tipo: 'mañana', 
-            orden: 2, 
-            icono: '📦', 
-            color: p.color, 
-            completado: p.entrega_recibida,
-            link: `/registro/proveedores?proveedor=${p.nombre}` 
+            id: `m-e-${p.id}`, dbId: p.id, msg: `${p.nombre}`, tag: 'MAÑANA', clase: 'entregas', tipo: 'mañana', orden: 2, icono: '📦', completado: p.entrega_recibida, link: `/registro/proveedores?proveedor=${p.nombre}` 
           });
         }
       });
@@ -135,19 +112,20 @@ useEffect(() => {
     }
   };
 
-  // FETCH OPTIMIZADO: Trae los faltantes activos o los gestionados el día de hoy
-  const obtenerFaltantes = async () => {
-    const { data } = await supabase
-      .from("productos_abastecimiento")
-      .select("*")
-      .or("esta_falta.eq.true,ultima_actualizacion.gte.today")
-      .order("esta_falta", { ascending: false })
-      .order("id", { ascending: false });
-    
-    if (data) {
-      setFaltantes(data);
-    }
-  };
+const obtenerFaltantes = async () => {
+  const { data } = await supabase
+    .from("productos_abastecimiento")
+    .select("*")
+    .or("esta_falta.eq.true,ultima_actualizacion.gte.today")
+    // ORDEN CRÍTICO: Primero los que faltan (true antes que false), 
+    // luego el más reciente primero.
+    .order("esta_falta", { ascending: false }) 
+    .order("ultima_actualizacion", { ascending: false });
+
+  if (data) {
+    setFaltantes(data);
+  }
+};
 
   // MANEJADORES DE ACCIÓN MUTABLES CON FEEDBACK INTERNO
   const alternarPedidoHecho = async (id: number, estadoActual: boolean, nombre: string) => {
@@ -166,7 +144,12 @@ useEffect(() => {
     } else {
       console.error("Error al actualizar pedido:", error.message);
     }
-  };
+if (!error) {
+    if (!estadoActual) sumarXP(20); // Gana 20 XP al completar
+    mostrarAlerta(nuevoEstado ? `¡+20 XP! Pedido de ${nombre} listo` : "Se revirtió el pedido");
+    obtenerAgenda();
+  }
+};
 
   const alternarEntregaRecibida = async (id: number, estadoActual: boolean, nombre: string) => {
     const nuevoEstado = !estadoActual;
@@ -186,26 +169,40 @@ useEffect(() => {
     }
   };
 
-  const alternarAbastecimiento = async (id: number, estadoActual: boolean, nombre: string) => {
-    const nuevoEstado = !estadoActual; // Si estaba falto (true), pasa a no falto (false)
-    const { error } = await supabase
-      .from("productos_abastecimiento")
-      .update({ 
-        esta_falta: nuevoEstado,
-        ultima_actualizacion: new Date().toISOString()
-      })
-      .eq("id", id);
+const alternarAbastecimiento = async (id: number, estadoActual: boolean, nombre: string) => {
+  const nuevoEstado = !estadoActual;
+  const ahora = new Date().toISOString();
 
-    if (!error) {
-      mostrarAlerta(
-        !nuevoEstado ? `${nombre} abastecido correctamente ✓` : `Se restauró ${nombre} como faltante ↩`,
-        !nuevoEstado ? "success" : "info"
-      );
-      obtenerFaltantes(); // Forzar refresco interno inmediato
-    } else {
-      console.error("Error al actualizar abastecimiento:", error.message);
-    }
-  };
+  // 1. Actualizamos localmente con un nuevo array (Referencia nueva para que React renderice)
+  setFaltantes((prevFaltantes) => {
+    const nuevosFaltantes = prevFaltantes.map(item => 
+      item.id === id ? { ...item, esta_falta: nuevoEstado, ultima_actualizacion: ahora } : item
+    );
+    
+    // Devolvemos el array ya ordenado
+    return nuevosFaltantes.sort((a, b) => {
+      // Prioridad: Faltantes arriba
+      if (a.esta_falta !== b.esta_falta) return a.esta_falta ? -1 : 1;
+      // Tiempo: Más reciente primero
+      return new Date(b.ultima_actualizacion).getTime() - new Date(a.ultima_actualizacion).getTime();
+    });
+  });
+
+  // 2. Persistencia en Supabase
+  const { error } = await supabase
+    .from("productos_abastecimiento")
+    .update({ 
+      esta_falta: nuevoEstado,
+      ultima_actualizacion: ahora
+    })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error al actualizar:", error.message);
+  } else {
+    mostrarAlerta(!nuevoEstado ? `${nombre} abastecido ✓` : `Se restauró ${nombre} ↩`, !nuevoEstado ? "success" : "info");
+  }
+};
 
   // FORMATEADOR DE FECHAS
   const formatearFechaFalta = (isoString: string) => {
@@ -251,14 +248,14 @@ useEffect(() => {
       
       {/* COMPONENTE NOTIFICACIÓN FLOTANTE (TOAST) */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl shadow-2xl text-xs font-black uppercase tracking-wide text-white border animate-in slide-in-from-bottom-5 duration-300 flex items-center gap-2 ${toast.tipo === 'success' ? 'bg-slate-900 border-emerald-500/30' : 'bg-slate-800 border-blue-500/30'}`}>
+        <div className={`fixed bottom-24 md:bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl shadow-2xl text-xs font-black uppercase tracking-wide text-white border animate-in slide-in-from-bottom-5 duration-300 flex items-center gap-2 ${toast.tipo === 'success' ? 'bg-slate-900 border-emerald-500/30' : 'bg-slate-800 border-blue-500/30'}`}>
           <span>{toast.tipo === 'success' ? '⚡' : '🔄'}</span>
           {toast.mensaje}
         </div>
       )}
 
       {/* SIDEBAR */}
-      <aside className="w-full md:w-64 bg-slate-900 text-white p-6 flex flex-col shadow-xl z-20">
+      <aside className="hidden md:flex w-64 bg-slate-900 text-white p-6 flex-col shadow-xl z-20">
         <div className="mb-10">
           <Link href="/registro" className="block">
             <h1 className="text-2xl font-black tracking-tighter italic">REG. <span className="text-blue-500">PAYAYA</span></h1>
@@ -276,7 +273,7 @@ useEffect(() => {
       </aside>
 
       {/* ÁREA DE TRABAJO */}
-      <section className="flex-1 h-screen overflow-y-auto bg-slate-50 relative">
+      <section className="flex-1 h-screen overflow-y-auto bg-slate-50 relative pb-20 md:pb-0">
         <div className="fixed top-6 right-8 z-50">
           <div className="relative">
             
@@ -293,9 +290,25 @@ useEffect(() => {
               )}
             </button>
 
+            {/*GAMIFICACION*/}
+            <div className="absolute top-0 right-16 flex items-center gap-3 bg-white px-4 py-3 rounded-2xl shadow-xl border border-slate-100">
+            <div className="text-right">
+              <p className={`text-[9px] font-black uppercase ${getRango(xp).color}`}>
+                {getRango(xp).nombre}
+              </p>
+              <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-indigo-600 transition-all duration-500" 
+                  style={{ width: `${(xp % 100)}%` }} 
+                />
+              </div>
+            </div>
+            <span className="text-xl">🏆</span>
+          </div>
+
             {/* PANEL DE NOTIFICACIONES */}
             {showNotif && (
-              <div className="absolute right-0 mt-4 w-96 bg-white rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 origin-top-right flex flex-col z-50">
+              <div className="absolute right-0 mt-4 w-[90vw] md:w-96 bg-white rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 origin-top-right flex flex-col z-50">
                 
                 {/* PESTAÑAS PRINCIPALES */}
                 <div className="bg-slate-900 p-4 pb-2 shrink-0">
@@ -359,7 +372,6 @@ useEffect(() => {
                         return (
                           <div key={n.id} className={`p-4 flex items-center justify-between gap-4 transition-colors ${bgFilaColor}`}>
                             <div className="flex items-center gap-4 min-w-0 flex-1">
-                              <div className={`w-1.5 h-11 rounded-full shrink-0 ${n.completado ? 'bg-slate-400' : (n.color || 'bg-slate-300')}`}></div>
                               <span className="text-xl bg-white p-2 rounded-xl shadow-sm">{n.completado ? '✅' : n.icono}</span>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-0.5">
@@ -402,57 +414,57 @@ useEffect(() => {
                   {activeTab === "abastecimiento" && (
                     faltantes.length === 0 ? (
                       <div className="p-10 text-center text-slate-400">
-                        <p className="text-[10px] font-bold uppercase italic tracking-wider">¡Todo completo! No hay quiebres de stock</p>
+                        <p className="text-[10px] font-bold uppercase italic tracking-wider">¡Todo completo!</p>
                       </div>
                     ) : (
-                      faltantes.map((f) => {
-                        const estaSurtido = !f.esta_falta;
+                      (() => {
+                        const grupos = faltantes.reduce((acc: any, item) => {
+                          const cat = item.categoria || "Sin categoría";
+                          if (!acc[cat]) acc[cat] = [];
+                          acc[cat].push(item);
+                          return acc;
+                        }, {});
 
-                        let bgFilaFalta = "bg-white hover:bg-rose-50/40";
-                        if (estaSurtido) {
-                          bgFilaFalta = "bg-slate-100/80 opacity-60 line-through select-none";
-                        }
-
-                        return (
-                          <div
-                            key={f.id}
-                            className={`p-4 flex items-center justify-between gap-4 transition-colors group ${bgFilaFalta}`}
-                          >
-                            <div className="flex items-center gap-4 min-w-0 flex-1">
-                              <div className={`w-1.5 h-11 rounded-full shrink-0 ${estaSurtido ? 'bg-slate-400' : 'bg-rose-500'}`}></div>
-                              <span className="text-xl bg-rose-50 p-2 rounded-xl text-rose-600">
-                                {estaSurtido ? '✅' : (f.icono || '🚨')}
-                              </span>
-                              <div className="flex-1 min-w-0">
-                                <p className={`text-xs font-black uppercase tracking-tight truncate ${estaSurtido ? 'text-slate-400' : 'text-slate-900'}`}>
-                                  {f.nombre}
-                                </p>
-                                <div className="flex flex-col gap-0.5 mt-1">
-                                  <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 bg-slate-100 rounded text-slate-500 w-max">
-                                    {f.categoria}
-                                  </span>
-                                  <span className={`text-[10px] font-bold italic mt-0.5 ${estaSurtido ? 'text-slate-400' : 'text-rose-600'}`}>
-                                    {estaSurtido ? 'Abastecido hoy' : formatearFechaFalta(f.ultima_actualizacion)}
-                                  </span>
+                        return Object.entries(grupos).map(([categoria, items]: any) => (
+                          <div key={categoria}>
+                            <div className="bg-slate-100 px-4 py-2 text-[9px] font-black text-slate-500 uppercase tracking-widest border-y border-slate-200">
+                              {categoria}
+                            </div>
+                            {items.map((f: any) => {
+                              const estaSurtido = !f.esta_falta;
+                              let bgFilaFalta = "bg-white hover:bg-rose-50/40";
+                              if (estaSurtido) {
+                                bgFilaFalta = "bg-slate-100/80 opacity-60 line-through select-none";
+                              }
+                              return (
+                                <div key={f.id} className={`p-4 flex items-center justify-between gap-4 transition-colors group ${bgFilaFalta}`}>
+                                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                                    <span className="text-xl bg-rose-50 p-2 rounded-xl text-rose-600">
+                                      {estaSurtido ? '✅' : (f.icono || '🚨')}
+                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                      <p className={`text-xs font-black uppercase tracking-tight truncate ${estaSurtido ? 'text-slate-400' : 'text-slate-900'}`}>
+                                        {f.nombre}
+                                      </p>
+                                      <span className={`text-[10px] font-bold italic ${estaSurtido ? 'text-slate-400' : 'text-rose-600'}`}>
+                                        {estaSurtido ? 'Abastecido hoy' : formatearFechaFalta(f.ultima_actualizacion)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() => alternarAbastecimiento(f.id, f.esta_falta, f.nombre)}
+                                    className={`px-2 py-1 text-[9px] font-black uppercase rounded-lg shadow transition-all ${estaSurtido ? 'bg-slate-600 hover:bg-slate-700 text-white' : 'bg-rose-600 hover:bg-rose-700 text-white'}`}
+                                  >
+                                    {estaSurtido ? 'Deshacer ↩' : 'Surtido ✓'}
+                                  </button>
                                 </div>
-                              </div>
-                            </div>
-
-                            {/* BOTÓN REVERTIBLE PARA ABASTECIMIENTO */}
-                            <div className="shrink-0">
-                              <button
-                                onClick={() => alternarAbastecimiento(f.id, f.esta_falta, f.nombre)}
-                                className={`px-2 py-1 text-[9px] font-black uppercase rounded-lg shadow transition-all ${estaSurtido ? 'bg-slate-600 hover:bg-slate-700 text-white' : 'bg-rose-600 hover:bg-rose-700 text-white'}`}
-                              >
-                                {estaSurtido ? 'Deshacer ↩' : 'Surtido ✓'}
-                              </button>
-                            </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })
+                        ));
+                      })()
                     )
                   )}
-
                 </div>
               </div>
             )}
@@ -464,6 +476,22 @@ useEffect(() => {
           {children}
         </div>
       </section>
+
+      {/* MENÚ MÓVIL (VISIBLE SOLO EN MÓVIL) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around items-center p-3 z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+        {[
+          { href: "/registro/envases", icon: "🍾", label: "Envases" },
+          { href: "/registro/productos", icon: "🥨", label: "Prod." },
+          { href: "/registro/dsobrante", icon: "💵", label: "Dinero" },
+          { href: "/registro/proveedores", icon: "🚚", label: "Prov." },
+          { href: "/registro/abastecimiento", icon: "📦", label: "Abast." },
+        ].map((item) => (
+          <Link key={item.href} href={item.href} className={`flex flex-col items-center gap-1 transition-all ${pathname.includes(item.href) ? "text-indigo-600" : "text-slate-400"}`}>
+            <span className="text-lg">{item.icon}</span>
+            <span className="text-[9px] font-black uppercase tracking-tighter">{item.label}</span>
+          </Link>
+        ))}
+      </nav>
     </main>
   );
 }
