@@ -21,6 +21,7 @@ interface PedidoGuardadoDB {
   cantidad: string;
   creado_en: string;
   recibido?: boolean;
+  oculto?: boolean; // <--- AGREGA ESTA LÍNEA
 }
 
 interface RankingItem {
@@ -46,17 +47,18 @@ function ProveedoresContent() {
   const diasSemana = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado"]; // Domingo omitido
 
   const cargarPedidosDesdeBD = async () => {
-    const { data, error } = await supabase
-      .from("pedidos")
-      .select("*")
-      .order("creado_en", { ascending: false });
+  const { data, error } = await supabase
+    .from("pedidos")
+    .select("*") // Esto trae todas las columnas, incluyendo 'oculto'
+    .order("creado_en", { ascending: false });
 
-    if (!error && data) {
-      setPedidosDB(data);
-    } else if (error) {
-      console.error("Error cargando histórico:", error);
-    }
-  };
+  if (error) {
+    console.error("Error:", error);
+  } else {
+    setPedidosDB(data || []);
+    console.log("Datos recibidos de Supabase:", data); // Verifica en F12 si 'oculto' viene en el objeto
+  }
+};
 
   useEffect(() => {
     const inicializarDatos = async () => {
@@ -109,16 +111,21 @@ function ProveedoresContent() {
   };
 
 // 1. FILTRO INTELIGENTE (72h automático)
-  const pedidosActivosFiltrados = pedidosDB.filter((pedido) => {
-    if (pedido.recibido !== true) return true;
-    if (pedido.oculto === true) return false; // Oculto manual
+const pedidosActivosFiltrados = pedidosDB.filter((pedido) => {
+  // Ocultar si el valor es explícitamente true
+  if (pedido.oculto === true) return false;
 
+  // Si no está oculto, aplicamos la lógica de 72 horas para los recibidos
+  if (pedido.recibido === true) {
     const ahora = new Date().getTime();
     const fechaRegistro = new Date(pedido.creado_en).getTime();
-    const limiteOcultar = fechaRegistro + (72 * 60 * 60 * 1000); // 72 horas
-    
+    const limiteOcultar = fechaRegistro + (72 * 60 * 60 * 1000);
     return ahora < limiteOcultar;
-  });
+  }
+
+  // Si no está recibido y no está oculto, se muestra siempre
+  return true;
+});
 
   // 2. FUNCIÓN OCULTAR GRUPO
   const ocultarGrupoProveedor = async (ids: number[]) => {
@@ -133,21 +140,27 @@ function ProveedoresContent() {
 
   const nombresProveedoresUnicos = Array.from(new Set(proveedores.map(p => p.nombre.toUpperCase()))).sort();
 
-  const obtenerProductosMasPedidos = (): RankingItem[] => {
+// Asegúrate de que esta función sea exactamente así:
+const obtenerProductosMasPedidos = (): RankingItem[] => {
+    // IMPORTANTE: Iteramos sobre 'pedidosDB' (La fuente original sin filtros)
     const conteo: Record<string, { proveedor: string; total: number }> = {};
-    pedidosDB.forEach(p => {
+    
+    pedidosDB.forEach(p => { 
       const key = p.producto.toUpperCase().trim();
       if (!conteo[key]) {
         conteo[key] = { proveedor: p.proveedor, total: 0 };
       }
       conteo[key].total += 1;
     });
-    return Object.keys(conteo).map(producto => ({
-      producto,
-      proveedor: conteo[producto].proveedor,
-      totalPedidos: conteo[producto].total
-    })).sort((a, b) => b.totalPedidos - a.totalPedidos);
-  };
+
+    return Object.keys(conteo)
+      .map(producto => ({
+        producto,
+        proveedor: conteo[producto].proveedor,
+        totalPedidos: conteo[producto].total
+      }))
+      .sort((a, b) => b.totalPedidos - a.totalPedidos);
+};
 
   const exportarPDFIndividual = (provName: string, items: PedidoGuardadoDB[]) => {
     const doc = new jsPDF();
@@ -326,30 +339,6 @@ const revertirGrupoProveedorDB = async (provName: string, ids: number[]) => {
           if (error) throw error;
         })
       );
-
-  // ↩️ REVERTIR PEDIDO GRUPAL
-  const revertirGrupoProveedorDB = async (provName: string, ids: number[]) => {
-    try {
-      await Promise.all(
-        ids.map(async (id) => {
-          const { error } = await supabase
-            .from("pedidos")
-            .update({ recibido: false })
-            .eq("id", id);
-          if (error) throw error;
-        })
-      );
-
-      await supabase
-        .from("proveedores")
-        .update({ pedido_hecho: true, entrega_recibida: false })
-        .eq("nombre", provName);
-
-      await cargarPedidosDesdeBD();
-    } catch (err) {
-      console.error("Error al revertir grupo:", err);
-    }
-  };
 
       // Revertimos también el estado del proveedor
       await supabase
@@ -548,11 +537,13 @@ const revertirGrupoProveedorDB = async (provName: string, ids: number[]) => {
     const provInfo = proveedores.find((p) => p.nombre === provName);
     const colorProv = provInfo?.color || "bg-indigo-600";
 
-    // Lógica para el botón de Ocultar Grupo
+    // LÓGICA DE TIEMPO PARA EL BOTÓN OCULTAR
     const todosRecibidos = itemsDelProveedor.every((item) => item.recibido);
-    const fechaMasAntigua = new Date(Math.min(...itemsDelProveedor.map((i) => new Date(i.creado_en).getTime())));
-    const horasPasadas = (new Date().getTime() - fechaMasAntigua.getTime()) / (1000 * 60 * 60);
-    const mostrarBotonOcultar = todosRecibidos && horasPasadas >= 24;
+    
+    // Calculamos si han pasado 24h desde que se recibió el primer item del grupo
+    // (Opcional: podrías guardar una fecha_recibido, pero usaremos el ahora menos 24h)
+    const horasPasadas = (new Date().getTime() - new Date(itemsDelProveedor[0].creado_en).getTime()) / (1000 * 60 * 60);
+    const esOcultable = todosRecibidos && horasPasadas >= 24;
 
     return (
       <div key={provName} className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col justify-between hover:border-white/20 transition-all">
@@ -568,12 +559,12 @@ const revertirGrupoProveedorDB = async (provName: string, ids: number[]) => {
             </div>
 
             <div className="flex items-center gap-1.5">
-              {/* Botón Ocultar Grupo (Nuevo) */}
-              {mostrarBotonOcultar && (
+              {/* BOTÓN OCULTAR GRUPO (Aparece solo si pasaron 24h y está recibido) */}
+              {esOcultable && (
                 <button
                   type="button"
                   onClick={() => ocultarGrupoProveedor(idsDelGrupo)}
-                  className="bg-slate-700 hover:bg-slate-600 text-white text-[9px] font-black uppercase px-2 py-1.5 rounded-md transition-colors"
+                  className="bg-slate-700 hover:bg-slate-800 text-white text-[9px] font-black uppercase px-2 py-1.5 rounded-md transition-colors"
                 >
                   ✕ Ocultar
                 </button>
@@ -620,33 +611,37 @@ const revertirGrupoProveedorDB = async (provName: string, ids: number[]) => {
 
           {/* Items */}
           <div className="space-y-1.5">
-            {itemsDelProveedor.map((item) => (
-              <div key={item.id} className={`p-3 rounded-lg border transition-all ${item.recibido ? "bg-slate-300 opacity-60 grayscale border-slate-400" : "border-slate-200"}`}>
+            {itemsDelProveedor.map(item => (
+              <div key={item.id} className={`p-3 rounded-lg border transition-all ${
+                  item.recibido 
+                    ? "bg-slate-300 opacity-60 grayscale border-slate-400" 
+                    : "border-slate-200"
+                }`}>
                 <div className="flex flex-col truncate pr-2">
                   <span className="font-black uppercase truncate text-slate-200">{item.producto}</span>
                   <span className="text-[10px] font-bold text-indigo-400">{item.cantidad}</span>
                 </div>
-
+                
                 <div className="flex items-center gap-1 shrink-0">
                   {item.recibido && (
-                    <button
-                      type="button"
+                    <button 
+                      type="button" 
                       onClick={() => revertirPedidoIndividual(item.id)}
                       className="text-[9px] text-blue-600 font-black uppercase hover:underline mr-2"
                     >
                       ↩️ Deshacer
                     </button>
                   )}
-                  <button
-                    type="button"
+                  <button 
+                    type="button" 
                     onClick={() => editarPedidoDB(item)}
                     className="text-slate-400 hover:text-indigo-400 p-1.5 font-bold text-xs"
                     title="Editar"
                   >
                     ✏️
                   </button>
-                  <button
-                    type="button"
+                  <button 
+                    type="button" 
                     onClick={() => eliminarPedidoDB(item.id)}
                     className="text-slate-400 hover:text-rose-400 p-1.5 text-xs font-black"
                     title="Eliminar producto"
@@ -658,7 +653,7 @@ const revertirGrupoProveedorDB = async (provName: string, ids: number[]) => {
             ))}
           </div>
         </div>
-
+        
         <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tight mt-3 text-left">
           Registrado: {new Date(itemsDelProveedor[0].creado_en).toLocaleDateString("es-ES")}
         </p>
