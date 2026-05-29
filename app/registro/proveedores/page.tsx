@@ -520,7 +520,7 @@ const revertirGrupoProveedorDB = async (provName: string, ids: number[]) => {
         <div className="lg:col-span-8 bg-slate-900 p-6 rounded-[2rem] shadow-xl text-white flex flex-col">
           <div className="flex items-center gap-2 mb-5 border-b border-white/10 pb-4">
             <span className="text-xl animate-pulse">📊</span>
-            <h3 className="text-lg font-black uppercase italic tracking-tighter">Monitoreo de Pedidos en Curso Durante (24Hrs)</h3>
+            <h3 className="text-lg font-black uppercase italic tracking-tighter">Monitoreo de Pedidos en Curso</h3>
           </div>
 
           <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2">
