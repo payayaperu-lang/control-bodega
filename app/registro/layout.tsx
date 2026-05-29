@@ -481,10 +481,10 @@ const alternarAbastecimiento = async (id: number, estadoActual: boolean, nombre:
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around items-center p-3 z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
         {[
           { href: "/registro/envases", icon: "🍾", label: "Envases" },
-          { href: "/registro/productos", icon: "🥨", label: "Prod." },
+          { href: "/registro/productos", icon: "🥨", label: "Productos" },
           { href: "/registro/dsobrante", icon: "💵", label: "Dinero" },
-          { href: "/registro/proveedores", icon: "🚚", label: "Prov." },
-          { href: "/registro/abastecimiento", icon: "📦", label: "Abast." },
+          { href: "/registro/proveedores", icon: "🚚", label: "Proveedor" },
+          { href: "/registro/abastecimiento", icon: "📦", label: "Abastecer" },
         ].map((item) => (
           <Link key={item.href} href={item.href} className={`flex flex-col items-center gap-1 transition-all ${pathname.includes(item.href) ? "text-indigo-600" : "text-slate-400"}`}>
             <span className="text-lg">{item.icon}</span>

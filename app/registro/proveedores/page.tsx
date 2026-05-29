@@ -6,14 +6,6 @@ import { supabase } from "../../lib/supabase";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-interface ItemPedido {
-  id: number;
-  proveedor: string;
-  producto: string;
-  cantidad: string;
-  color: string;
-}
-
 interface ProveedorDB {
   id: number;
   nombre: string;
@@ -22,42 +14,78 @@ interface ProveedorDB {
   dia_entrega: string;
 }
 
+interface PedidoGuardadoDB {
+  id: number;
+  proveedor: string;
+  producto: string;
+  cantidad: string;
+  creado_en: string;
+  recibido?: boolean;
+}
+
+interface RankingItem {
+  producto: string;
+  proveedor: string;
+  totalPedidos: number;
+}
+
 function ProveedoresContent() {
   const searchParams = useSearchParams();
   const proveedorQuery = searchParams.get("proveedor");
 
-  const [pedido, setPedido] = useState<ItemPedido[]>([]);
   const [proveedores, setProveedores] = useState<ProveedorDB[]>([]);
+  const [pedidosDB, setPedidosDB] = useState<PedidoGuardadoDB[]>([]);
   const [proveedorSel, setProveedorSel] = useState("");
   const [producto, setProducto] = useState("");
   const [cantidad, setCantidad] = useState("");
   const [cargando, setCargando] = useState(true);
+  const [enviando, setEnviando] = useState(false);
+  const [verHistorial, setVerHistorial] = useState(false);
+  
+  const [diaAbierto, setDiaAbierto] = useState<string | null>(null);
+  const diasSemana = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado"]; // Domingo omitido
+
+  const cargarPedidosDesdeBD = async () => {
+    const { data, error } = await supabase
+      .from("pedidos")
+      .select("*")
+      .order("creado_en", { ascending: false });
+
+    if (!error && data) {
+      setPedidosDB(data);
+    } else if (error) {
+      console.error("Error cargando histórico:", error);
+    }
+  };
 
   useEffect(() => {
     const inicializarDatos = async () => {
-      const { data, error } = await supabase
+      const { data: provsData, error: provsError } = await supabase
         .from("proveedores")
         .select("*")
         .order("nombre", { ascending: true });
 
-      if (error) {
-        console.error("Error cargando proveedores:", error);
-      } else if (data) {
-        setProveedores(data);
-        const pedidoGuardado = localStorage.getItem("pedido_temporal_payaya");
+      if (provsError) {
+        console.error("Error cargando proveedores:", provsError);
+      } else if (provsData) {
+        setProveedores(provsData);
         const proveedorGuardado = localStorage.getItem("proveedor_actual_payaya");
 
-        if (pedidoGuardado) {
-          try { setPedido(JSON.parse(pedidoGuardado)); } catch (e) { console.error(e); }
-        }
-
         if (proveedorQuery) {
-          const existe = data.find(p => p.nombre.toLowerCase() === proveedorQuery.toLowerCase());
+          const existe = provsData.find(p => p.nombre.toLowerCase() === proveedorQuery.toLowerCase());
           if (existe) setProveedorSel(existe.nombre);
         } else if (proveedorGuardado) {
           setProveedorSel(proveedorGuardado);
         }
+
+        const hoy = new Date().toLocaleDateString("es-ES", { weekday: "long" }).toLowerCase();
+        const diaEncontrado = diasSemana.find(
+          (d) => d.normalize("NFD").replace(/[\u0300-\u036f]/g, "") === hoy.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        );
+        setDiaAbierto(diaEncontrado || "lunes");
       }
+
+      await cargarPedidosDesdeBD();
       setCargando(false);
     };
     inicializarDatos();
@@ -65,212 +93,635 @@ function ProveedoresContent() {
 
   useEffect(() => {
     if (!cargando) {
-      localStorage.setItem("pedido_temporal_payaya", JSON.stringify(pedido));
       localStorage.setItem("proveedor_actual_payaya", proveedorSel);
     }
-  }, [pedido, proveedorSel, cargando]);
+  }, [proveedorSel, cargando]);
 
-  const exportarPDF = () => {
-    if (pedido.length === 0) {
-      alert("No hay items para exportar");
-      return;
-    }
+  // 🔥 FILTRO INTELIGENTE: Ocultar 1 día después de la fecha de entrega programada
+  const obtenerProximoDiaSemana = (fechaBase: Date, diaObjetivo: string) => {
+    const resultado = new Date(fechaBase);
+    const mapaDias: Record<string, number> = { lunes: 1, martes: 2, miércoles: 3, jueves: 4, viernes: 5, sábado: 6};
+    const numeroDiaObjetivo = mapaDias[diaObjetivo.toLowerCase().trim()] ?? 1;
+    
+    const distancia = (numeroDiaObjetivo + 7 - resultado.getDay()) % 7;
+    resultado.setDate(resultado.getDate() + (distancia === 0 ? 7 : distancia));
+    return resultado;
+  };
+
+const pedidosActivosFiltrados = pedidosDB.filter((pedido) => {
+    // Si el pedido NO ha sido recibido, muéstralo siempre (o según tu preferencia)
+    if (pedido.recibido === false) return true;
+
+    // Si ya fue recibido, aplica el filtro de tiempo
+    const provInfo = proveedores.find(p => p.nombre.toUpperCase() === pedido.proveedor.toUpperCase());
+    if (!provInfo || !provInfo.dia_entrega) return true;
+
+    const fechaRegistro = new Date(pedido.creado_en);
+    const proximaEntrega = obtenerProximoDiaSemana(fechaRegistro, provInfo.dia_entrega);
+    const limiteOcultar = proximaEntrega.getTime() + (24 * 60 * 60 * 1000);
+    const ahora = new Date().getTime();
+
+    return ahora < limiteOcultar;
+});
+
+  const nombresProveedoresUnicos = Array.from(new Set(proveedores.map(p => p.nombre.toUpperCase()))).sort();
+
+  const obtenerProductosMasPedidos = (): RankingItem[] => {
+    const conteo: Record<string, { proveedor: string; total: number }> = {};
+    pedidosDB.forEach(p => {
+      const key = p.producto.toUpperCase().trim();
+      if (!conteo[key]) {
+        conteo[key] = { proveedor: p.proveedor, total: 0 };
+      }
+      conteo[key].total += 1;
+    });
+    return Object.keys(conteo).map(producto => ({
+      producto,
+      proveedor: conteo[producto].proveedor,
+      totalPedidos: conteo[producto].total
+    })).sort((a, b) => b.totalPedidos - a.totalPedidos);
+  };
+
+  const exportarPDFIndividual = (provName: string, items: PedidoGuardadoDB[]) => {
     const doc = new jsPDF();
-    doc.setFontSize(20);
+    doc.setFontSize(18);
     doc.setTextColor(30, 41, 59);
-    doc.text("NOTA DE PEDIDO", 14, 20);
+    doc.text(`NOTA DE PEDIDO: ${provName.toUpperCase()}`, 14, 20);
     doc.setFontSize(10);
     doc.setTextColor(100);
-    doc.text(`Generado el: ${new Date().toLocaleString()}`, 14, 28);
-    doc.text("Sistema de Gestión Payaya", 14, 33);
+    doc.text(`Generado el: ${new Date().toLocaleString()}`, 14, 27);
 
-    const tableColumn = ["Proveedor", "Producto", "Cantidad"];
-    const tableRows = pedido.map(item => [
-      item.proveedor.toUpperCase(),
+    const tableColumn = ["Producto", "Cantidad", "Estado", "Fecha Registro"];
+    const tableRows = items.map(item => [
       item.producto.toUpperCase(),
-      item.cantidad
+      item.cantidad,
+      item.recibido ? "RECIBIDO EN TIENDA" : "PENDIENTE EN CAMINO",
+      new Date(item.creado_en).toLocaleDateString("es-ES")
     ]);
 
     autoTable(doc, {
-      startY: 40,
+      startY: 35,
       head: [tableColumn],
       body: tableRows,
       theme: 'grid',
       headStyles: { fillColor: [79, 70, 229], fontStyle: 'bold' },
-      styles: { fontSize: 9, cellPadding: 4 },
+      styles: { fontSize: 9, cellPadding: 5 },
     });
 
-    doc.save(`Pedido_Payaya_${new Date().getTime()}.pdf`);
+    doc.save(`Pedido_${provName}_${new Date().toLocaleDateString("es-ES")}.pdf`);
   };
 
-  const manejarEnvio = (e: React.FormEvent) => {
+  // CREATE
+  const manejarEnvioDirecto = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!producto.trim() || !cantidad || isNaN(Number(cantidad)) || !proveedorSel) {
       alert("Completa todos los campos correctamente");
       return;
     }
     
-    const infoProv = proveedores.find(p => p.nombre === proveedorSel);
-    const nuevoItem = { 
-      id: Date.now(), 
-      proveedor: proveedorSel,
-      producto: producto.toUpperCase(), 
-      cantidad: `${cantidad} UNIDADES`,
-      color: infoProv?.color || "bg-slate-500"
-    };
+    setEnviando(true);
+    try {
+      const { error } = await supabase
+        .from("pedidos")
+        .insert([{
+          proveedor: proveedorSel.toUpperCase(),
+          producto: producto.toUpperCase().trim(),
+          cantidad: `${cantidad} UNIDADES`,
+          creado_en: new Date().toISOString(),
+        }]);
 
-    setPedido([nuevoItem, ...pedido]);
-    setProducto("");
-    setCantidad("");
-    document.getElementById("input-producto")?.focus();
+      if (error) throw error;
+      setProducto("");
+      setCantidad("");
+      await cargarPedidosDesdeBD();
+      document.getElementById("input-producto")?.focus();
+    } catch (err) {
+      console.error(err);
+      alert("Error al registrar el pedido.");
+    } finally {
+      setEnviando(false);
+    }
   };
 
-  const eliminarItem = (id: number) => {
-    setPedido(pedido.filter(item => item.id !== id));
+  // ✏️ UPDATE COMPLETO
+  const editarPedidoDB = async (item: PedidoGuardadoDB) => {
+    const nuevoNombre = window.prompt(`Modificar nombre del producto:`, item.producto);
+    if (nuevoNombre === null || nuevoNombre.trim() === "") return;
+
+    const cantidadLimpia = item.cantidad.replace(" UNIDADES", "");
+    const nuevaCantidad = window.prompt(`Modificar cantidad para "${nuevoNombre.toUpperCase()}":`, cantidadLimpia);
+    if (nuevaCantidad === null || nuevaCantidad.trim() === "" || isNaN(Number(nuevaCantidad))) return;
+
+    try {
+      const { error } = await supabase
+        .from("pedidos")
+        .update({ 
+          producto: nuevoNombre.toUpperCase().trim(),
+          cantidad: `${nuevaCantidad} UNIDADES` 
+        })
+        .eq("id", item.id);
+
+      if (error) throw error;
+      await cargarPedidosDesdeBD();
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo actualizar el registro.");
+    }
   };
+
+// ✅ MARCAR COMO RECIBIDO (Actualiza, no borra)
+  const marcarGrupoComoRecibido = async (provName: string, ids: number[]) => {
+    try {
+      await Promise.all(
+        ids.map(async (id) => {
+          const { error } = await supabase
+            .from("pedidos")
+            .update({ recibido: true }) // <--- Aquí activamos el cambio
+            .eq("id", id);
+          if (error) throw error;
+        })
+      );
+
+      // Actualizar estado en proveedores
+      await supabase
+        .from("proveedores")
+        .update({ pedido_hecho: false, entrega_recibida: true })
+        .eq("nombre", provName);
+
+      await cargarPedidosDesdeBD();
+      alert("📦 Pedido marcado como recibido.");
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // DELETE ITEM
+  const eliminarPedidoDB = async (id: number) => {
+    const confirmar = window.confirm("¿Eliminar este producto del pedido?");
+    if (!confirmar) return;
+
+    try {
+      const { error } = await supabase.from("pedidos").delete().eq("id", id);
+      if (error) throw error;
+      await cargarPedidosDesdeBD();
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo eliminar el registro.");
+    }
+  };
+
+  // ↩️ REVERTIR PEDIDO INDIVIDUAL
+  const revertirPedidoIndividual = async (id: number) => {
+    try {
+      const { error } = await supabase
+        .from("pedidos")
+        .update({ recibido: false })
+        .eq("id", id);
+      
+      if (error) throw error;
+      
+      await cargarPedidosDesdeBD();
+      alert("🔄 Pedido revertido a estado 'Pendiente'.");
+    } catch (err) {
+      console.error("Error al revertir:", err);
+      alert("No se pudo revertir el estado.");
+    }
+  };
+
+  // DELETE TOTAL GROUP (Corregido)
+  const eliminarGrupoProveedorDB = async (provName: string, ids: number[]) => {
+    const confirmar = window.confirm(`⚠️ ¿Estás seguro de eliminar TODO el bloque de pedidos de "${provName.toUpperCase()}" (${ids.length} productos)?`);
+    if (!confirmar) return;
+
+    try {
+      await Promise.all(
+        ids.map(async (id) => {
+          const { error } = await supabase.from("pedidos").delete().eq("id", id);
+          if (error) throw error;
+        })
+      );
+
+      await cargarPedidosDesdeBD();
+    } catch (err) {
+      console.error(err);
+      alert("Error al eliminar el grupo completo.");
+    }
+  };
+
+  // ↩️ REVERTIR PEDIDO (Desmarcar como recibido)
+const revertirGrupoProveedorDB = async (provName: string, ids: number[]) => {
+    try {
+      await Promise.all(
+        ids.map(async (id) => {
+          const { error } = await supabase
+            .from("pedidos")
+            .update({ recibido: false })
+            .eq("id", id);
+          if (error) throw error;
+        })
+      );
+
+  // ↩️ REVERTIR PEDIDO GRUPAL
+  const revertirGrupoProveedorDB = async (provName: string, ids: number[]) => {
+    try {
+      await Promise.all(
+        ids.map(async (id) => {
+          const { error } = await supabase
+            .from("pedidos")
+            .update({ recibido: false })
+            .eq("id", id);
+          if (error) throw error;
+        })
+      );
+
+      await supabase
+        .from("proveedores")
+        .update({ pedido_hecho: true, entrega_recibida: false })
+        .eq("nombre", provName);
+
+      await cargarPedidosDesdeBD();
+    } catch (err) {
+      console.error("Error al revertir grupo:", err);
+    }
+  };
+
+      // Revertimos también el estado del proveedor
+      await supabase
+        .from("proveedores")
+        .update({ pedido_hecho: true, entrega_recibida: false })
+        .eq("nombre", provName);
+
+      await cargarPedidosDesdeBD();
+      alert("🔄 Grupo completo revertido a 'Pendiente'.");
+    } catch (err) {
+      console.error(err);
+      alert("Error al revertir el grupo.");
+    }
+  };
+    // 1. Obtenemos solo los nombres de los proveedores que coinciden con el día abierto
+    const nombresProveedoresHoy = proveedores
+      .filter(p => p.dia_pedido?.toLowerCase() === diaAbierto?.toLowerCase())
+      .map(p => p.nombre.toUpperCase());
+
+    // 2. Quitamos duplicados y ordenamos
+    const opcionesSelect = Array.from(new Set(nombresProveedoresHoy)).sort();
 
   if (cargando) return <div className="p-10 text-center font-black uppercase animate-pulse text-slate-400">Sincronizando...</div>;
 
+  const proveedoresDelDiaActivo = proveedores.filter((p) => p.dia_pedido?.toLowerCase() === diaAbierto);
+  const rankingMasPedidos = obtenerProductosMasPedidos();
+
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
+    <div className="max-w-6xl mx-auto space-y-6 p-4 animate-in fade-in duration-500">
       
-      {/* CABECERA PRINCIPAL LIMPIA */}
-      <div className="border-b border-slate-200 pb-6">
+      {/* CABECERA */}
+      <div className="border-b border-slate-200 pb-4">
         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] mb-1">Logística y Abastecimiento</p>
-        <h2 className="text-4xl font-black text-slate-900 tracking-tighter uppercase italic">
+        <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase italic">
           Gestión de <span className="text-indigo-600">Proveedores</span>
         </h2>
       </div>
 
-      {/* TARJETAS SUPERIORES */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-        {proveedores.map((p) => (
-          <div 
-            key={p.id} 
-            onClick={() => setProveedorSel(p.nombre)}
-            className={`bg-white p-5 rounded-[2rem] border transition-all cursor-pointer shadow-sm flex flex-col justify-center gap-2 ${
-              proveedorSel === p.nombre 
-                ? 'border-indigo-600 ring-4 ring-indigo-50 scale-[1.02]' 
-                : 'border-slate-100 hover:border-slate-300'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <div className={`w-2.5 h-2.5 rounded-full ${p.color} shadow-sm`}></div>
-              <h3 className="font-black text-slate-900 uppercase text-[12px] tracking-tight">{p.nombre}</h3>
+      {/* TABS DE DÍAS */}
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+          {diasSemana.map((dia) => {
+            const cantidadProv = proveedores.filter((p) => p.dia_pedido?.toLowerCase() === dia).length;
+            const esDiaActivo = diaAbierto === dia;
+
+            return (
+              <button
+                key={dia}
+                type="button"
+                onClick={() => setDiaAbierto(diaAbierto === dia ? null : dia)}
+                className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all text-center group ${
+                  esDiaActivo
+                    ? "border-indigo-600 bg-indigo-50/60 ring-4 ring-indigo-100 text-indigo-950 font-black scale-[1.02]"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300 font-bold"
+                }`}
+              >
+                <span className="text-[11px] uppercase tracking-wider italic">{dia}</span>
+                <span className={`text-[9px] mt-1 px-2 py-0.5 rounded-md font-black uppercase ${
+                  esDiaActivo ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500"
+                }`}>
+                  {cantidadProv} {cantidadProv === 1 ? "Prov" : "Provs"}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* PROVEEDORES DEL DÍA */}
+        {diaAbierto && (
+          <div className="p-5 bg-slate-50 border-2 border-indigo-600 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center gap-2 mb-4 border-b border-slate-200/60 pb-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse"></span>
+              <p className="text-xs font-black text-indigo-950 uppercase tracking-wider">
+                Proveedores del <span className="underline italic text-indigo-600">{diaAbierto}</span>:
+              </p>
             </div>
-            
-            <div className="flex flex-wrap gap-1">
-              <div className="bg-slate-100 px-2 py-1 rounded-lg flex items-center gap-1.5">
-                <span className="text-[7px] font-black text-slate-400 uppercase">PED:</span>
-                <span className="text-[9px] font-black text-slate-800 uppercase italic">{p.dia_pedido}</span>
+
+            {proveedoresDelDiaActivo.length === 0 ? (
+              <p className="text-xs font-bold text-slate-400 uppercase py-4 text-center bg-white rounded-xl border border-dashed border-slate-200">
+                No hay proveedores programados para este día
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {proveedoresDelDiaActivo.map((p) => (
+                  <div 
+                    key={p.id} 
+                    onClick={() => setProveedorSel(p.nombre)}
+                    className={`bg-white p-4 rounded-xl border transition-all cursor-pointer shadow-xs flex flex-col justify-between gap-3 ${
+                      proveedorSel === p.nombre 
+                        ? 'border-indigo-600 ring-4 ring-indigo-50 scale-[1.01]' 
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                      <div className={`w-2.5 h-2.5 rounded-full ${p.color} shrink-0`}></div>
+                      <h3 className="font-black text-slate-900 uppercase text-xs tracking-tight truncate">{p.nombre}</h3>
+                    </div>
+                    
+                    <div className="space-y-1.5 text-left bg-slate-50 p-2 rounded-lg border border-slate-100 text-xs">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-slate-500 uppercase text-[10px]">Pedido:</span>
+                        <span className="font-black text-slate-800 uppercase italic bg-white px-2 py-0.5 rounded border border-slate-200">{p.dia_pedido}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-indigo-500 uppercase text-[10px]">Entrega:</span>
+                        <span className="font-black text-indigo-700 uppercase italic bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">{p.dia_entrega}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="bg-indigo-50 px-2 py-1 rounded-lg flex items-center gap-1.5 border border-indigo-100">
-                <span className="text-[7px] font-black text-indigo-400 uppercase">LLEGA:</span>
-                <span className="text-[9px] font-black text-indigo-700 uppercase italic">{p.dia_entrega}</span>
-              </div>
-            </div>
+            )}
           </div>
-        ))}
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      {/* ÁREA DE TRABAJO */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
         {/* FORMULARIO */}
-        <form onSubmit={manejarEnvio} className="lg:col-span-5 bg-white p-8 rounded-[3.5rem] shadow-xl border border-slate-100 h-fit">
-          <h3 className="text-xl font-black text-slate-900 uppercase mb-8 italic tracking-tighter">📝 Nueva Nota</h3>
+        <form onSubmit={manejarEnvioDirecto} className="lg:col-span-4 bg-white p-6 rounded-[2rem] shadow-md border border-slate-200 h-fit">
+          <h3 className="text-lg font-black text-slate-900 uppercase mb-5 italic tracking-tighter">🚀 Registrar Pedido</h3>
           
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div>
-              <label className="block text-[10px] font-black text-slate-900 uppercase ml-4 mb-2 tracking-widest">Proveedor</label>
+              <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">Proveedor</label>
               <select
                 value={proveedorSel}
                 onChange={(e) => setProveedorSel(e.target.value)}
-                className="w-full px-6 py-4 bg-slate-100 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold text-slate-900 outline-none cursor-pointer"
+                className="w-full px-4 py-3.5 bg-slate-100 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-bold text-slate-900 outline-none cursor-pointer"
               >
-                <option value="">-- SELECCIONAR --</option>
-                {proveedores.map(p => (
-                  <option key={p.id} value={p.nombre}>{p.nombre.toUpperCase()}</option>
-                ))}
+                <option value="">-- PROVEEDOR DE DÍA --</option>
+                
+                {opcionesSelect.length > 0 ? (
+                  opcionesSelect.map(nombre => (
+                    <option key={nombre} value={nombre}>{nombre}</option>
+                  ))
+                ) : (
+                  <option value="" disabled>No hay pedidos hoy</option>
+                )}
               </select>
             </div>
 
             <div>
-              <label className="block text-[10px] font-black text-slate-900 uppercase ml-4 mb-2 tracking-widest">Producto</label>
+              <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">Producto</label>
               <input
                 id="input-producto"
                 type="text"
                 value={producto}
                 onChange={(e) => setProducto(e.target.value)}
                 placeholder="EJ: PILSEN 630ML"
-                className="w-full px-6 py-4 bg-slate-100 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold text-slate-900 outline-none"
+                className="w-full px-4 py-3.5 bg-slate-100 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-bold text-slate-900 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[10px] font-black text-slate-900 uppercase ml-4 mb-2 tracking-widest">Cantidad (Números)</label>
+              <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">Cantidad</label>
               <input
                 type="number"
                 value={cantidad}
                 onChange={(e) => setCantidad(e.target.value)}
                 placeholder="0"
                 min="1"
-                className="w-full px-6 py-4 bg-slate-100 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold text-slate-900 outline-none"
+                className="w-full px-4 py-3.5 bg-slate-100 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-bold text-slate-900 outline-none"
               />
             </div>
 
-            <button type="submit" className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-lg active:scale-95">
-              Añadir a la lista +
+            <button 
+              type="submit" 
+              disabled={enviando}
+              className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all disabled:opacity-50"
+            >
+              {enviando ? "Guardando..." : "Enviar a Base de Datos ↑"}
             </button>
           </div>
         </form>
 
-        {/* LISTA DE PEDIDO CON BOTÓN DE EXPORTAR DENTRO */}
-        <div className="lg:col-span-7 bg-slate-900 p-8 rounded-[3.5rem] shadow-2xl text-white flex flex-col">
-          <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-6 flex-wrap gap-4">
-            <h3 className="text-xl font-black uppercase italic tracking-tighter">🛒 Items en Nota</h3>
-            
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={exportarPDF}
-                className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all shadow-lg active:scale-95 flex items-center gap-2"
-              >
-                <span>📥</span> GUARDAR PDF
-              </button>
-              <span className="text-[10px] font-black bg-white/10 px-4 py-2 rounded-xl text-white uppercase border border-white/5">
-                {pedido.length} Und
-              </span>
-            </div>
+        {/* MONITOR ACTIVO */}
+        <div className="lg:col-span-8 bg-slate-900 p-6 rounded-[2rem] shadow-xl text-white flex flex-col">
+          <div className="flex items-center gap-2 mb-5 border-b border-white/10 pb-4">
+            <span className="text-xl animate-pulse">📊</span>
+            <h3 className="text-lg font-black uppercase italic tracking-tighter">Monitoreo de Pedidos en Curso</h3>
           </div>
 
-          <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
-            {pedido.length === 0 ? (
-              <div className="py-20 text-center flex flex-col items-center opacity-30">
-                <span className="text-4xl mb-2">📦</span>
-                <p className="text-[10px] font-black uppercase tracking-widest text-white">No hay productos en la lista</p>
+          <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2">
+            {pedidosActivosFiltrados.length === 0 ? (
+              <div className="py-20 text-center flex flex-col items-center opacity-25">
+                <span className="text-4xl mb-2">📡</span>
+                <p className="text-[11px] font-black uppercase tracking-widest text-white">Sin despachos programados en este momento</p>
               </div>
             ) : (
-              pedido.map((item) => (
-                <div key={item.id} className="flex items-center justify-between bg-white/5 p-5 rounded-[2rem] border border-white/10 hover:bg-white/10 transition-all">
-                  <div className="flex flex-col gap-1">
-                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-md w-fit text-white uppercase ${item.color}`}>
-                      {item.proveedor}
-                    </span>
-                    <p className="text-sm font-black uppercase text-white">{item.producto}</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">CANTIDAD: <span className="text-white font-black">{item.cantidad}</span></p>
-                  </div>
-                  <button onClick={() => eliminarItem(item.id)} className="p-4 bg-white/5 hover:bg-rose-600 text-white rounded-2xl transition-all shadow-sm">✕</button>
-                </div>
-              ))
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {Array.from(new Set(pedidosActivosFiltrados.map(pr => pr.proveedor))).map(provName => {
+                  const itemsDelProveedor = pedidosActivosFiltrados.filter(pr => pr.proveedor === provName);
+                  const idsDelGrupo = itemsDelProveedor.map(item => item.id);
+                  const provInfo = proveedores.find(p => p.nombre === provName);
+                  const colorProv = provInfo?.color || "bg-indigo-600";
+                  
+                  // Verifica si todos los productos de este proveedor ya fueron recibidos
+                  const todosRecibidos = itemsDelProveedor.every(item => item.recibido);
+
+                  return (
+                    <div key={provName} className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col justify-between hover:border-white/20 transition-all">
+                      <div>
+                        {/* Cabecera Proveedor */}
+                        <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2.5 flex-wrap gap-2">
+                          <div className="flex flex-col max-w-[45%]">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${colorProv} shrink-0`}></span>
+                              <span className="font-black text-white uppercase text-xs tracking-tight italic truncate">{provName}</span>
+                            </div>
+                            <span className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Entrega: {provInfo?.dia_entrega || 'N/A'}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-1.5">
+                            {/* Botón lógico: Recibir todo o Deshacer todo */}
+                              {!todosRecibidos ? (
+                                <button
+                                  type="button"
+                                  onClick={() => marcarGrupoComoRecibido(provName, idsDelGrupo)}
+                                  className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-2 py-1.5 rounded-md transition-colors"
+                                >
+                                  ✓ Recibido
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => revertirGrupoProveedorDB(provName, idsDelGrupo)}
+                                  className="bg-amber-500 hover:bg-amber-600 text-white text-[9px] font-black uppercase px-2 py-1.5 rounded-md transition-colors"
+                                >
+                                  ↩️ Deshacer
+                                </button>
+                              )}
+                            
+                            <button
+                              type="button"
+                              onClick={() => exportarPDFIndividual(provName, itemsDelProveedor)}
+                              className="bg-indigo-600 hover:bg-indigo-500 text-[9px] font-black uppercase px-2 py-1.5 rounded-md transition-colors"
+                              title="Generar PDF"
+                            >
+                              📄 PDF
+                            </button>
+                            
+                            {/* Botón de Borrar Grupo - Solo Ícono */}
+                            <button
+                              type="button"
+                              onClick={() => eliminarGrupoProveedorDB(provName, idsDelGrupo)}
+                              className="bg-rose-600/30 hover:bg-rose-600 text-rose-400 hover:text-white p-1.5 rounded-md transition-all flex items-center justify-center"
+                              title="Borrar grupo completo"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {/* Items */}
+                        <div className="space-y-1.5">
+                          {itemsDelProveedor.map(item => (
+                            <div key={item.id} className={`p-3 rounded-lg border transition-all ${
+                                item.recibido 
+                                  ? "bg-slate-300 opacity-60 grayscale border-slate-400" // ESTILO GRIS
+                                  : "border-slate-200"                          // ESTILO NORMAL
+                              }`}>
+                              <div className="flex flex-col truncate pr-2">
+                                <span className="font-black uppercase truncate text-slate-200">{item.producto}</span>
+                                <span className="text-[10px] font-bold text-indigo-400">{item.cantidad}</span>
+                              </div>
+                              
+                              <div className="flex items-center gap-1 shrink-0">
+                                {/* --- COPIA Y PEGA ESTO AQUÍ --- */}
+                                  {item.recibido && (
+                                    <button 
+                                      type="button" 
+                                      onClick={() => revertirPedidoIndividual(item.id)}
+                                      className="text-[9px] text-blue-600 font-black uppercase hover:underline mr-2"
+                                    >
+                                      ↩️ Deshacer
+                                    </button>
+                                  )}
+                                  {/* ------------------------------ */}
+                                <button 
+                                  type="button" 
+                                  onClick={() => editarPedidoDB(item)}
+                                  className="text-slate-400 hover:text-indigo-400 p-1.5 font-bold text-xs"
+                                  title="Editar"
+                                >
+                                  ✏️
+                                </button>
+                                <button 
+                                  type="button" 
+                                  onClick={() => eliminarPedidoDB(item.id)}
+                                  className="text-slate-400 hover:text-rose-400 p-1.5 text-xs font-black"
+                                  title="Eliminar producto"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tight mt-3 text-left">
+                        Registrado: {new Date(itemsDelProveedor[0].creado_en).toLocaleDateString("es-ES")}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>
+
       </div>
+
+      {/* HISTORIAL */}
+      <div className="bg-slate-100 rounded-[2rem] border border-slate-200 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setVerHistorial(!verHistorial)}
+          className="w-full p-5 flex items-center justify-between font-black text-slate-800 uppercase italic text-xs tracking-wider hover:bg-slate-200/50 transition-colors outline-none"
+        >
+          <div className="flex items-center gap-2">
+            <span>📈</span>
+            <span>Historial Comercial: Productos Más Pedidos ({rankingMasPedidos.length})</span>
+          </div>
+          <span className="text-sm font-bold bg-white text-slate-600 px-3 py-1 rounded-xl border border-slate-200">
+            {verHistorial ? "OCULTAR ANALÍTICA ▲" : "VER RANKING DE CONSUMO ▼"}
+          </span>
+        </button>
+
+        {/* CONTENIDO HISTORIAL */}
+        {verHistorial && (
+          <div className="p-6 bg-white border-t border-slate-200 space-y-4 animate-in fade-in duration-300">
+            <p className="text-xs font-medium text-slate-500 uppercase">
+              Ranking histórico global de la base de datos. Ideal para control de inventarios a largo plazo.
+            </p>
+
+            {rankingMasPedidos.length === 0 ? (
+              <p className="text-xs text-center font-bold text-slate-400 py-6 uppercase">Sin datos históricos.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {rankingMasPedidos.map((item, index) => (
+                  <div key={item.producto} className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between relative overflow-hidden">
+                    <span className="absolute top-2 right-2 text-[9px] font-black bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+                      TOP #{index + 1}
+                    </span>
+
+                    <div className="space-y-1 pr-10">
+                      <p className="text-xs font-black text-slate-900 uppercase tracking-tight truncate" title={item.producto}>
+                        {item.producto}
+                      </p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase truncate">
+                        Prov: {item.proveedor}
+                      </p>
+                    </div>
+
+                    <div className="mt-3 pt-2 border-t border-slate-200/60 flex justify-between items-center text-[11px]">
+                      <span className="font-bold text-slate-500 uppercase text-[9px]">Veces Pedido:</span>
+                      <span className="font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                        {item.totalPedidos}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
 
 export default function ProveedoresPage() {
   return (
-    <Suspense fallback={<div>Cargando...</div>}>
+    <Suspense fallback={<div className="p-10 text-center font-black uppercase animate-pulse text-slate-400">Cargando...</div>}>
       <ProveedoresContent />
     </Suspense>
   );
