@@ -108,21 +108,28 @@ function ProveedoresContent() {
     return resultado;
   };
 
-const pedidosActivosFiltrados = pedidosDB.filter((pedido) => {
-    // Si el pedido NO ha sido recibido, muéstralo siempre (o según tu preferencia)
-    if (pedido.recibido === false) return true;
+// 1. FILTRO INTELIGENTE (72h automático)
+  const pedidosActivosFiltrados = pedidosDB.filter((pedido) => {
+    if (pedido.recibido !== true) return true;
+    if (pedido.oculto === true) return false; // Oculto manual
 
-    // Si ya fue recibido, aplica el filtro de tiempo
-    const provInfo = proveedores.find(p => p.nombre.toUpperCase() === pedido.proveedor.toUpperCase());
-    if (!provInfo || !provInfo.dia_entrega) return true;
-
-    const fechaRegistro = new Date(pedido.creado_en);
-    const proximaEntrega = obtenerProximoDiaSemana(fechaRegistro, provInfo.dia_entrega);
-    const limiteOcultar = proximaEntrega.getTime() + (24 * 60 * 60 * 1000);
     const ahora = new Date().getTime();
-
+    const fechaRegistro = new Date(pedido.creado_en).getTime();
+    const limiteOcultar = fechaRegistro + (72 * 60 * 60 * 1000); // 72 horas
+    
     return ahora < limiteOcultar;
-});
+  });
+
+  // 2. FUNCIÓN OCULTAR GRUPO
+  const ocultarGrupoProveedor = async (ids: number[]) => {
+    if (!window.confirm("¿Ocultar este grupo del monitor?")) return;
+    try {
+      await Promise.all(ids.map(async (id) => {
+        await supabase.from("pedidos").update({ oculto: true }).eq("id", id);
+      }));
+      await cargarPedidosDesdeBD();
+    } catch (err) { alert("Error al ocultar"); }
+  };
 
   const nombresProveedoresUnicos = Array.from(new Set(proveedores.map(p => p.nombre.toUpperCase()))).sort();
 
@@ -231,29 +238,28 @@ const pedidosActivosFiltrados = pedidosDB.filter((pedido) => {
 
 // ✅ MARCAR COMO RECIBIDO (Actualiza, no borra)
   const marcarGrupoComoRecibido = async (provName: string, ids: number[]) => {
-    try {
-      await Promise.all(
-        ids.map(async (id) => {
-          const { error } = await supabase
-            .from("pedidos")
-            .update({ recibido: true }) // <--- Aquí activamos el cambio
-            .eq("id", id);
-          if (error) throw error;
-        })
-      );
+  try {
+    const ahora = new Date().toISOString(); // Capturamos el momento exacto
+    await Promise.all(
+      ids.map(async (id) => {
+        const { error } = await supabase
+          .from("pedidos")
+          .update({ 
+            recibido: true,
+            // Opcional: si agregas la columna 'fecha_recibido' a tu tabla
+            // fecha_recibido: ahora 
+          })
+          .eq("id", id);
+        if (error) throw error;
+      })
+    );
 
-      // Actualizar estado en proveedores
-      await supabase
-        .from("proveedores")
-        .update({ pedido_hecho: false, entrega_recibida: true })
-        .eq("nombre", provName);
-
-      await cargarPedidosDesdeBD();
-      alert("📦 Pedido marcado como recibido.");
-    } catch (err) {
-      console.error(err);
-    }
-  };
+    // ... resto de tu código
+    await cargarPedidosDesdeBD();
+  } catch (err) {
+    console.error(err);
+  }
+};
 
   // DELETE ITEM
   const eliminarPedidoDB = async (id: number) => {
@@ -525,7 +531,7 @@ const revertirGrupoProveedorDB = async (provName: string, ids: number[]) => {
         <div className="lg:col-span-8 bg-slate-900 p-6 rounded-[2rem] shadow-xl text-white flex flex-col">
           <div className="flex items-center gap-2 mb-5 border-b border-white/10 pb-4">
             <span className="text-xl animate-pulse">📊</span>
-            <h3 className="text-lg font-black uppercase italic tracking-tighter">Monitoreo de Pedidos en Curso</h3>
+            <h3 className="text-lg font-black uppercase italic tracking-tighter">Monitoreo de Pedidos en Curso Durante (24Hrs)</h3>
           </div>
 
           <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2">
@@ -536,123 +542,130 @@ const revertirGrupoProveedorDB = async (provName: string, ids: number[]) => {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {Array.from(new Set(pedidosActivosFiltrados.map(pr => pr.proveedor))).map(provName => {
-                  const itemsDelProveedor = pedidosActivosFiltrados.filter(pr => pr.proveedor === provName);
-                  const idsDelGrupo = itemsDelProveedor.map(item => item.id);
-                  const provInfo = proveedores.find(p => p.nombre === provName);
-                  const colorProv = provInfo?.color || "bg-indigo-600";
-                  
-                  // Verifica si todos los productos de este proveedor ya fueron recibidos
-                  const todosRecibidos = itemsDelProveedor.every(item => item.recibido);
+  {Array.from(new Set(pedidosActivosFiltrados.map((pr) => pr.proveedor))).map((provName) => {
+    const itemsDelProveedor = pedidosActivosFiltrados.filter((pr) => pr.proveedor === provName);
+    const idsDelGrupo = itemsDelProveedor.map((item) => item.id);
+    const provInfo = proveedores.find((p) => p.nombre === provName);
+    const colorProv = provInfo?.color || "bg-indigo-600";
 
-                  return (
-                    <div key={provName} className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col justify-between hover:border-white/20 transition-all">
-                      <div>
-                        {/* Cabecera Proveedor */}
-                        <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2.5 flex-wrap gap-2">
-                          <div className="flex flex-col max-w-[45%]">
-                            <div className="flex items-center gap-2">
-                              <span className={`w-2 h-2 rounded-full ${colorProv} shrink-0`}></span>
-                              <span className="font-black text-white uppercase text-xs tracking-tight italic truncate">{provName}</span>
-                            </div>
-                            <span className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Entrega: {provInfo?.dia_entrega || 'N/A'}</span>
-                          </div>
-                          
-                          <div className="flex items-center gap-1.5">
-                            {/* Botón lógico: Recibir todo o Deshacer todo */}
-                              {!todosRecibidos ? (
-                                <button
-                                  type="button"
-                                  onClick={() => marcarGrupoComoRecibido(provName, idsDelGrupo)}
-                                  className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-2 py-1.5 rounded-md transition-colors"
-                                >
-                                  ✓ Recibido
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => revertirGrupoProveedorDB(provName, idsDelGrupo)}
-                                  className="bg-amber-500 hover:bg-amber-600 text-white text-[9px] font-black uppercase px-2 py-1.5 rounded-md transition-colors"
-                                >
-                                  ↩️ Deshacer
-                                </button>
-                              )}
-                            
-                            <button
-                              type="button"
-                              onClick={() => exportarPDFIndividual(provName, itemsDelProveedor)}
-                              className="bg-indigo-600 hover:bg-indigo-500 text-[9px] font-black uppercase px-2 py-1.5 rounded-md transition-colors"
-                              title="Generar PDF"
-                            >
-                              📄 PDF
-                            </button>
-                            
-                            {/* Botón de Borrar Grupo - Solo Ícono */}
-                            <button
-                              type="button"
-                              onClick={() => eliminarGrupoProveedorDB(provName, idsDelGrupo)}
-                              className="bg-rose-600/30 hover:bg-rose-600 text-rose-400 hover:text-white p-1.5 rounded-md transition-all flex items-center justify-center"
-                              title="Borrar grupo completo"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </div>
-                        
-                        {/* Items */}
-                        <div className="space-y-1.5">
-                          {itemsDelProveedor.map(item => (
-                            <div key={item.id} className={`p-3 rounded-lg border transition-all ${
-                                item.recibido 
-                                  ? "bg-slate-300 opacity-60 grayscale border-slate-400" // ESTILO GRIS
-                                  : "border-slate-200"                          // ESTILO NORMAL
-                              }`}>
-                              <div className="flex flex-col truncate pr-2">
-                                <span className="font-black uppercase truncate text-slate-200">{item.producto}</span>
-                                <span className="text-[10px] font-bold text-indigo-400">{item.cantidad}</span>
-                              </div>
-                              
-                              <div className="flex items-center gap-1 shrink-0">
-                                {/* --- COPIA Y PEGA ESTO AQUÍ --- */}
-                                  {item.recibido && (
-                                    <button 
-                                      type="button" 
-                                      onClick={() => revertirPedidoIndividual(item.id)}
-                                      className="text-[9px] text-blue-600 font-black uppercase hover:underline mr-2"
-                                    >
-                                      ↩️ Deshacer
-                                    </button>
-                                  )}
-                                  {/* ------------------------------ */}
-                                <button 
-                                  type="button" 
-                                  onClick={() => editarPedidoDB(item)}
-                                  className="text-slate-400 hover:text-indigo-400 p-1.5 font-bold text-xs"
-                                  title="Editar"
-                                >
-                                  ✏️
-                                </button>
-                                <button 
-                                  type="button" 
-                                  onClick={() => eliminarPedidoDB(item.id)}
-                                  className="text-slate-400 hover:text-rose-400 p-1.5 text-xs font-black"
-                                  title="Eliminar producto"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tight mt-3 text-left">
-                        Registrado: {new Date(itemsDelProveedor[0].creado_en).toLocaleDateString("es-ES")}
-                      </p>
-                    </div>
-                  );
-                })}
+    // Lógica para el botón de Ocultar Grupo
+    const todosRecibidos = itemsDelProveedor.every((item) => item.recibido);
+    const fechaMasAntigua = new Date(Math.min(...itemsDelProveedor.map((i) => new Date(i.creado_en).getTime())));
+    const horasPasadas = (new Date().getTime() - fechaMasAntigua.getTime()) / (1000 * 60 * 60);
+    const mostrarBotonOcultar = todosRecibidos && horasPasadas >= 24;
+
+    return (
+      <div key={provName} className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col justify-between hover:border-white/20 transition-all">
+        <div>
+          {/* Cabecera Proveedor */}
+          <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2.5 flex-wrap gap-2">
+            <div className="flex flex-col max-w-[45%]">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${colorProv} shrink-0`}></span>
+                <span className="font-black text-white uppercase text-xs tracking-tight italic truncate">{provName}</span>
               </div>
+              <span className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Entrega: {provInfo?.dia_entrega || 'N/A'}</span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              {/* Botón Ocultar Grupo (Nuevo) */}
+              {mostrarBotonOcultar && (
+                <button
+                  type="button"
+                  onClick={() => ocultarGrupoProveedor(idsDelGrupo)}
+                  className="bg-slate-700 hover:bg-slate-600 text-white text-[9px] font-black uppercase px-2 py-1.5 rounded-md transition-colors"
+                >
+                  ✕ Ocultar
+                </button>
+              )}
+
+              {/* Botón lógico: Recibir todo o Deshacer todo */}
+              {!todosRecibidos ? (
+                <button
+                  type="button"
+                  onClick={() => marcarGrupoComoRecibido(provName, idsDelGrupo)}
+                  className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-2 py-1.5 rounded-md transition-colors"
+                >
+                  ✓ Recibido
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => revertirGrupoProveedorDB(provName, idsDelGrupo)}
+                  className="bg-amber-500 hover:bg-amber-600 text-white text-[9px] font-black uppercase px-2 py-1.5 rounded-md transition-colors"
+                >
+                  ↩️ Deshacer
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => exportarPDFIndividual(provName, itemsDelProveedor)}
+                className="bg-indigo-600 hover:bg-indigo-500 text-[9px] font-black uppercase px-2 py-1.5 rounded-md transition-colors"
+                title="Generar PDF"
+              >
+                📄 PDF
+              </button>
+
+              <button
+                type="button"
+                onClick={() => eliminarGrupoProveedorDB(provName, idsDelGrupo)}
+                className="bg-rose-600/30 hover:bg-rose-600 text-rose-400 hover:text-white p-1.5 rounded-md transition-all flex items-center justify-center"
+                title="Borrar grupo completo"
+              >
+                🗑️
+              </button>
+            </div>
+          </div>
+
+          {/* Items */}
+          <div className="space-y-1.5">
+            {itemsDelProveedor.map((item) => (
+              <div key={item.id} className={`p-3 rounded-lg border transition-all ${item.recibido ? "bg-slate-300 opacity-60 grayscale border-slate-400" : "border-slate-200"}`}>
+                <div className="flex flex-col truncate pr-2">
+                  <span className="font-black uppercase truncate text-slate-200">{item.producto}</span>
+                  <span className="text-[10px] font-bold text-indigo-400">{item.cantidad}</span>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  {item.recibido && (
+                    <button
+                      type="button"
+                      onClick={() => revertirPedidoIndividual(item.id)}
+                      className="text-[9px] text-blue-600 font-black uppercase hover:underline mr-2"
+                    >
+                      ↩️ Deshacer
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => editarPedidoDB(item)}
+                    className="text-slate-400 hover:text-indigo-400 p-1.5 font-bold text-xs"
+                    title="Editar"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => eliminarPedidoDB(item.id)}
+                    className="text-slate-400 hover:text-rose-400 p-1.5 text-xs font-black"
+                    title="Eliminar producto"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tight mt-3 text-left">
+          Registrado: {new Date(itemsDelProveedor[0].creado_en).toLocaleDateString("es-ES")}
+        </p>
+      </div>
+    );
+  })}
+</div>
             )}
           </div>
         </div>
