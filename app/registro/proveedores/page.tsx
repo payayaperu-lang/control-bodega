@@ -12,6 +12,7 @@ interface ProveedorDB {
   color: string;
   dia_pedido: string;
   dia_entrega: string;
+  catalogo_link?: string; // <--- NUEVA COLUMNA DE DRIVE
 }
 
 interface PedidoGuardadoDB {
@@ -406,7 +407,7 @@ const revertirGrupoProveedorDB = async (provName: string, ids: number[]) => {
           })}
         </div>
 
-        {/* PROVEEDORES DEL DÍA */}
+        {/* PROVEEDORES DEL DÍA (Aquí renderizamos la columna del catálogo) */}
         {diaAbierto && (
           <div className="p-5 bg-slate-50 border-2 border-indigo-600 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex items-center gap-2 mb-4 border-b border-slate-200/60 pb-2">
@@ -446,6 +447,21 @@ const revertirGrupoProveedorDB = async (provName: string, ids: number[]) => {
                         <span className="font-bold text-indigo-500 uppercase text-[10px]">Entrega:</span>
                         <span className="font-black text-indigo-700 uppercase italic bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">{p.dia_entrega}</span>
                       </div>
+                    </div>
+
+                    {/* BOTÓN O LINK DE ACCESO AL CATÁLOGO DE DRIVE */}
+                    <div className="mt-1">
+                      {p.catalogo_link && (
+                        <a
+                          href={p.catalogo_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center justify-center gap-1.5 w-full py-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-lg text-[11px] font-black uppercase tracking-wider transition-all"
+                        >
+                          📂 Ver Catálogo (Drive)
+                        </a>
+                      )}
                     </div>
                   </div>
                 ))}
