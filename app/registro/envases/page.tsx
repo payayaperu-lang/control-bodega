@@ -114,13 +114,20 @@ export default function EnvasesRegistroPage() {
     }
   }
 
+  // --- SE AGREGA LA EXTRACCIÓN DE LA HORA EN FORMATO 12 HORAS (AM/PM) ---
   const formatFechaCorta = (fechaStr: string) => {
     const fecha = new Date(fechaStr);
     const hoy = new Date();
     const esHoy = fecha.getDate() === hoy.getDate() && fecha.getMonth() === hoy.getMonth() && fecha.getFullYear() === hoy.getFullYear();
     const dia = fecha.getDate();
     const mes = fecha.toLocaleString('es-ES', { month: 'short' }).replace('.', '').toUpperCase();
-    return { dia, mes, esHoy };
+    
+    // Obtener hora, minutos y el marcador de periodo
+    const horaFormateada = fecha.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'
+      //, hour12: true
+    }).toUpperCase();
+
+    return { dia, mes, horaFormateada, esHoy };
   };
 
   return (
@@ -333,94 +340,105 @@ export default function EnvasesRegistroPage() {
       </tr>
     </thead>
     <tbody>
-      {registrosFiltrados.map((item) => {
-        const { dia, mes, esHoy } = formatFechaCorta(item.fecha);
-        const esReciente = item.id === nuevoId;
-        
-        return (
-          <tr 
-            key={item.id} 
-            className={`transition-all duration-1000 ease-in-out ${
-              esReciente ? 'scale-[1.01]' : 'scale-100'
-            }`}
-          >
-            <td className={`px-4 py-4 rounded-l-3xl transition-colors duration-1000 ${esReciente ? 'bg-blue-600' : 'bg-slate-50'}`}>
-              <div className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl border ${esReciente ? 'bg-white text-blue-600 border-white' : esHoy ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-900 border-slate-200'}`}>
-                <span className="text-lg font-black leading-none">{dia}</span>
-                <span className="text-[8px] font-black mt-1 uppercase">{mes}</span>
-              </div>
-            </td>
-            <td className={`px-4 py-4 ${esReciente ? 'bg-blue-600' : 'bg-slate-50'}`}>
-              <p className={`text-[10px] font-black uppercase ${esReciente ? 'text-blue-100' : 'text-slate-400'}`}>{item.cliente}</p>
-              <p className={`text-sm font-black uppercase italic ${esReciente ? 'text-white' : 'text-slate-900'}`}>{item.envase}</p>
-            </td>
-            <td className={`px-4 py-4 text-center ${esReciente ? 'bg-blue-600' : 'bg-slate-50'}`}>
-              <span className={`text-xl font-black font-mono ${esReciente ? 'text-white' : 'text-blue-600'}`}>{item.cantidad}</span>
-            </td>
-            <td className={`px-4 py-4 text-right ${esReciente ? 'bg-blue-600' : 'bg-slate-50'}`}>
-              <p className={`text-lg font-black font-mono ${esReciente ? 'text-white' : 'text-slate-900'}`}>S/ {Number(item.dinero).toFixed(2)}</p>
-              <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded ${esReciente ? 'bg-blue-400 text-white' : (item.pago === 'Yape' ? 'bg-purple-100 text-purple-600' : 'bg-emerald-100 text-emerald-600')}`}>{item.pago}</span>
-            </td>
-            <td className={`px-4 py-4 rounded-r-3xl text-center ${esReciente ? 'bg-blue-600' : 'bg-slate-50'}`}>
-              <div className="flex gap-2 justify-center">
-                <button onClick={() => toggleDevuelto(item.id, item.devuelto)} className={`text-[10px] font-black px-4 py-2.5 rounded-xl border-2 transition-all ${item.devuelto === 1 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
-                  {item.devuelto === 1 ? 'RECIBIDO' : 'PENDIENTE'}
-                </button>
-              </div>
-            </td>
-          </tr>
-        );
-      })}
-    </tbody>
+                    {registrosFiltrados.map((item) => {
+                      const { dia, mes, horaFormateada, esHoy } = formatFechaCorta(item.fecha);
+                      const esReciente = item.id === nuevoId;
+                      
+                      return (
+                        <tr 
+                          key={item.id} 
+                          className={`transition-all duration-1000 ease-in-out ${
+                            esReciente ? 'scale-[1.01]' : 'scale-100'
+                          }`}
+                        >
+                          <td className={`px-4 py-4 rounded-l-3xl transition-colors duration-1000 ${esReciente ? 'bg-blue-600' : 'bg-slate-50'}`}>
+                            <div className="flex flex-col items-center justify-center">
+                              <div className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl border ${esReciente ? 'bg-white text-blue-600 border-white' : esHoy ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-900 border-slate-200'}`}>
+                                <span className="text-lg font-black leading-none">{dia}</span>
+                                <span className="text-[8px] font-black mt-1 uppercase">{mes}</span>
+                              </div>
+                              {/* SE MUESTRA LA HORA DEBAJO DEL RECUADRO */}
+                              <span className={`text-[11px] font-black font-mono mt-1 ${esReciente ? 'text-blue-100' : 'text-slate-500'}`}>
+                                {horaFormateada}
+                              </span>
+                            </div>
+                          </td>
+                          <td className={`px-4 py-4 ${esReciente ? 'bg-blue-600' : 'bg-slate-50'}`}>
+                            <p className={`text-[10px] font-black uppercase ${esReciente ? 'text-blue-100' : 'text-slate-400'}`}>{item.cliente}</p>
+                            <p className={`text-sm font-black uppercase italic ${esReciente ? 'text-white' : 'text-slate-900'}`}>{item.envase}</p>
+                          </td>
+                          <td className={`px-4 py-4 text-center ${esReciente ? 'bg-blue-600' : 'bg-slate-50'}`}>
+                            <span className={`text-xl font-black font-mono ${esReciente ? 'text-white' : 'text-blue-600'}`}>{item.cantidad}</span>
+                          </td>
+                          <td className={`px-4 py-4 text-right ${esReciente ? 'bg-blue-600' : 'bg-slate-50'}`}>
+                            <p className={`text-lg font-black font-mono ${esReciente ? 'text-white' : 'text-slate-900'}`}>S/ {Number(item.dinero).toFixed(2)}</p>
+                            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded ${esReciente ? 'bg-blue-400 text-white' : (item.pago === 'Yape' ? 'bg-purple-100 text-purple-600' : 'bg-emerald-100 text-emerald-600')}`}>{item.pago}</span>
+                          </td>
+                          <td className={`px-4 py-4 rounded-r-3xl text-center ${esReciente ? 'bg-blue-600' : 'bg-slate-50'}`}>
+                            <div className="flex gap-2 justify-center">
+                              <button onClick={() => toggleDevuelto(item.id, item.devuelto)} className={`text-[10px] font-black px-4 py-2.5 rounded-xl border-2 transition-all ${item.devuelto === 1 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                                {item.devuelto === 1 ? 'RECIBIDO' : 'PENDIENTE'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
   </table>
 </div>
 
-    {/* VISTA CELULAR (Tarjetas) - CON LÓGICA DE HOY */}
-    <div className="sm:hidden space-y-3">
-      {registrosFiltrados.map((item) => {
-        const { dia, mes, esHoy } = formatFechaCorta(item.fecha);
-        const esReciente = item.id === nuevoId;
+    {/* VISTA CELULAR (Tarjetas) */}
+              <div className="sm:hidden space-y-3">
+                {registrosFiltrados.map((item) => {
+                  const { dia, mes, horaFormateada, esHoy } = formatFechaCorta(item.fecha);
+                  const esReciente = item.id === nuevoId;
 
-        return (
-          <div 
-            key={item.id} 
-            className={`bg-slate-50 p-4 rounded-3xl border border-slate-100 flex items-center justify-between transition-all duration-700 ${
-              esReciente ? 'scale-[1.02] border-blue-400 ring-2 ring-blue-200 animate-pulse' : ''
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              {/* AQUÍ ESTÁ EL CAMBIO: Lógica para esHoy */}
-              <div className={`flex flex-col items-center p-2 rounded-xl w-12 border ${
-                esReciente ? 'bg-blue-600 border-blue-700 text-white' : 
-                esHoy ? 'bg-blue-600 border-blue-700 text-white' : 'bg-white border-slate-200'
-              }`}>
-                <span className="text-xs font-black">{dia}</span>
-                <span className={`text-[7px] uppercase font-bold ${esReciente || esHoy ? 'text-blue-100' : 'text-slate-400'}`}>{mes}</span>
-              </div>
-              
-              <div>
-                <p className="text-[12px] font-black text-slate-600 uppercase">{item.cliente}</p>
-                <p className="text-[11px] font-black uppercase italic">{item.envase}</p>
-                <div className="flex items-center gap-2 mt-1">
-                   <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-full">{item.cantidad} UNID.</span>
-                   <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${item.pago === 'Yape' ? 'bg-purple-100 text-purple-600' : 'bg-emerald-100 text-emerald-600'}`}>{item.pago}</span>
-                </div>
-              </div>
-            </div>
+                  return (
+                    <div 
+                      key={item.id} 
+                      className={`bg-slate-50 p-4 rounded-3xl border border-slate-100 flex items-center justify-between transition-all duration-700 ${
+                        esReciente ? 'scale-[1.02] border-blue-400 ring-2 ring-blue-200 animate-pulse' : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex flex-col items-center justify-center">
+                          <div className={`flex flex-col items-center p-2 rounded-xl w-12 border ${
+                            esReciente ? 'bg-blue-600 border-blue-700 text-white' : 
+                            esHoy ? 'bg-blue-600 border-blue-700 text-white' : 'bg-white border-slate-200'
+                          }`}>
+                            <span className="text-md font-black">{dia}</span>
+                            <span className={`text-[9px] uppercase font-bold ${esReciente || esHoy ? 'text-blue-100' : 'text-slate-400'}`}>{mes}</span>
+                          </div>
+                          {/* SE MUESTRA LA HORA DEBAJO DEL RECUADRO EN MÓVIL */}
+                          <span className="text-[10px] font-black font-mono text-slate-500 mt-1">
+                            {horaFormateada}
+                          </span>
+                        </div>
+                        
+                        <div>
+                          <p className="text-[12px] font-black text-slate-600 uppercase">{item.cliente}</p>
+                          <p className="text-[11px] font-black uppercase italic">{item.envase}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                             <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-full">{item.cantidad} UNID.</span>
+                             <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${item.pago === 'Yape' ? 'bg-purple-100 text-purple-600' : 'bg-emerald-100 text-emerald-600'}`}>{item.pago}</span>
+                          </div>
+                        </div>
+                      </div>
 
-            <div className="text-right">
-              <p className="text-sm font-black font-mono">S/ {Number(item.dinero).toFixed(2)}</p>
-              <button 
-                onClick={() => toggleDevuelto(item.id, item.devuelto)} 
-                className={`mt-1 text-[8px] font-black px-3 py-1 rounded-lg ${item.devuelto === 1 ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}
-              >
-                {item.devuelto === 1 ? 'RECIBIDO' : 'PENDIENTE'}
-              </button>
-            </div>
-          </div>
-        );
-      })}
-    </div>
+                      <div className="text-right">
+                        <p className="text-sm font-black font-mono">S/ {Number(item.dinero).toFixed(2)}</p>
+                        <button 
+                          onClick={() => toggleDevuelto(item.id, item.devuelto)} 
+                          className={`mt-1 text-[8px] font-black px-3 py-1 rounded-lg ${item.devuelto === 1 ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}
+                        >
+                          {item.devuelto === 1 ? 'RECIBIDO' : 'PENDIENTE'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
 
     {registrosFiltrados.length === 0 && !loading && (
       <div className="p-20 text-center text-slate-300 font-black uppercase text-xs tracking-[0.3em]">Sin registros</div>

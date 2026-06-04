@@ -24,19 +24,19 @@ export default function InicioRegistroPage() {
       textColor: "text-blue-600"
     },
     {
-      titulo: "Faltantes",
+      titulo: "PROD. FYS",
       desc: "Snacks, galletas y abarrotes",
       icon: "🍪", // Icono de galleta/bodega
-      href: "/registro/pfaltantes",
+      href: "/registro/productos",
       color: "border-orange-500",
       bg: "bg-orange-50",
       textColor: "text-orange-600"
     },
     {
-      titulo: "P. Sobrantes",
-      desc: "Mercadería excedente",
-      icon: "🥨", // Icono de snack/pretzel para bodega
-      href: "/registro/psobrantes",
+      titulo: "Proveedores",
+      desc: "Pedidos de Mercadería",
+      icon: "🚚", // Icono de snack/pretzel para bodega
+      href: "/registro/proveedores",
       color: "border-indigo-500",
       bg: "bg-indigo-50",
       textColor: "text-indigo-600"
@@ -45,7 +45,7 @@ export default function InicioRegistroPage() {
       titulo: "D. Sobrantes",
       desc: "Dinero extra en caja",
       icon: "💵",
-      href: "/registro/dsobrantes",
+      href: "/registro/dsobrante",
       color: "border-emerald-500",
       bg: "bg-emerald-50",
       textColor: "text-emerald-600"
