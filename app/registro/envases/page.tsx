@@ -161,16 +161,15 @@ export default function EnvasesRegistroPage() {
       <div className="max-w-7xl mx-auto space-y-6 p-4 min-h-screen bg-slate-50 text-slate-800">
         
         {/* HEADER - RESPONSIVO Y MANTENIENDO TODAS TUS FUNCIONES */}
-<div className="flex flex-col md:flex-row justify-between items-center gap-6 pt-4 px-2">
+<div className="flex flex-col md:flex-row justify-between  gap-6 pt-4 px-2">
   
   {/* TÍTULO */}
-  <div className="text-left w-full md:w-auto">
-    <h2 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.4em] mb-1 ml-1">Terminal</h2>
-    <h1 className="text-4xl md:text-5xl font-black text-slate-900 italic uppercase leading-none">
-      ENVASES<span className="text-blue-600">.SYS</span>
-    </h1>
-  </div>
-
+  <div className="border-b border-slate-200 pb-4">
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] mb-1">Control</p>
+        <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase italic">
+          <span className="text-indigo-600"> Envases</span>
+        </h2>
+      </div>
   {/* CONTENEDOR DE FECHAS Y TOGGLE (Mantiene el estado y funciones originales) */}
   <div className="flex flex-wrap justify-center items-center gap-3 bg-white p-3 rounded-3xl border border-slate-200 shadow-sm w-full md:w-auto">
     

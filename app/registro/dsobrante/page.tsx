@@ -156,11 +156,13 @@ export default function DineroSobrantePage() {
 
       <div className="max-w-7xl mx-auto space-y-8 p-4 min-h-screen flex flex-col relative bg-slate-50">
         {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-6 shrink-0 pt-4">
-          <div>
-            <h2 className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.4em] mb-1 ml-1">Terminal de Auditoría</h2>
-            <h1 className="text-5xl font-black text-slate-900 tracking-tighter italic uppercase leading-none">SOBRANTE<span className="text-emerald-600">.CASH</span></h1>
-          </div>
+        <div className="flex flex-col md:flex-row justify-between gap-6 shrink-0 pt-4">
+          <div className="border-b border-slate-200 pb-4">
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] mb-1">Control de Ingresos</p>
+        <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase italic">
+          Dinero<span className="text-indigo-600"> Sobrante</span>
+        </h2>
+      </div>
 
           <div className="flex items-center gap-4 bg-white p-3 rounded-[2.5rem] shadow-xl border border-slate-100">
             <div className="flex items-center gap-3 px-2 cursor-pointer" onClick={togglePeriodo}>
