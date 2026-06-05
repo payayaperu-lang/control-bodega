@@ -407,8 +407,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <Link href="/registro/envases" onClick={() => setShowMobileMenu(false)} className="px-4 py-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-bold text-xs flex items-center gap-3">🍾 Control Envases</Link>
                   <Link href="/registro/productos" onClick={() => setShowMobileMenu(false)} className="px-4 py-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-bold text-xs flex items-center gap-3">🥨 Productos FYS</Link>
                   <Link href="/registro/dsobrante" onClick={() => setShowMobileMenu(false)} className="px-4 py-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-bold text-xs flex items-center gap-3">💵 Dinero Sobrante</Link>
-                  <Link href="/registro/proveedores" onClick={() => setShowMobileMenu(false)} className="px-4 py-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-bold text-xs flex items-center gap-3">🚚 Gestión Proveedores</Link>
                   <Link href="/registro/abastecimiento" onClick={() => setShowMobileMenu(false)} className="px-4 py-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-bold text-xs flex items-center gap-3">📦 Abastecimiento</Link>
+                  <Link href="/registro/proveedores" onClick={() => setShowMobileMenu(false)} className="px-4 py-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-bold text-xs flex items-center gap-3">🚚 Proveedores</Link>
                 </nav>
               </div>
               <button onClick={() => { localStorage.removeItem("auth"); router.push("/login"); }} className="w-full bg-slate-900 text-white py-3.5 rounded-xl text-xs font-black uppercase tracking-wider">Cerrar Sesión 🚪</button>
