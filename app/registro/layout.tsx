@@ -264,8 +264,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Link href="/registro/envases" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActiveDesktop("/registro/envases")}`}>🍾 CONTROL ENVASES</Link>
           <Link href="/registro/productos" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActiveDesktop("/registro/productos")}`}>🥨 PRODUCTOS FYS</Link>
           <Link href="/registro/dsobrante" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActiveDesktop("/registro/dsobrante")}`}>💵 DINERO SOBRANTE</Link>
-          <Link href="/registro/proveedores" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActiveDesktop("/registro/proveedores")}`}>🚚 GESTIÓN PROVEEDORES</Link>
           <Link href="/registro/abastecimiento" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActiveDesktop("/registro/abastecimiento")}`}>📦 ABASTECIMIENTO</Link>
+          <Link href="/registro/proveedores" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActiveDesktop("/registro/proveedores")}`}>🚚 PROVEEDORES</Link>
         </nav>
         <button onClick={() => { localStorage.removeItem("auth"); router.push("/login"); }} className="mt-auto w-full bg-slate-800 text-slate-400 py-4 rounded-2xl text-[10px] font-black uppercase">Cerrar Sesión 🚪</button>
       </aside>
