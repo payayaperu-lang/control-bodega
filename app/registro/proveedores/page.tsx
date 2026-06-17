@@ -428,7 +428,7 @@ function ProveedoresContent() {
                           onClick={(e) => e.stopPropagation()}
                           className="flex items-center justify-center gap-1.5 w-full py-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-lg text-[11px] font-black uppercase tracking-wider transition-all"
                         >
-                          📂 Ver Catálogo (Drive)
+                          📂 Ver Catálogo
                         </a>
                       )}
                     </div>

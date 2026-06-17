@@ -74,7 +74,7 @@ export default function GamificacionPage() {
   const [confirmandoEnvase, setConfirmandoEnvase] = useState(false);
   const [nuevoIdEnvase, setNuevoIdEnvase] = useState<number | null>(null);
   const [filtroEstadoEnvase, setFiltroEstadoEnvase] = useState("pendientes");
-  const [formEnvase, setFormEnvase] = useState({ cliente: "", envase: "", cantidad: "", dinero: "", pago: "Efectivo" });
+  const [formEnvase, setFormEnvase] = useState({ cliente: "", envase: "", cantidad: "1", dinero: "2", pago: "Efectivo" });
 
   const formularioEnvaseValido = useMemo(() => {
     return (
@@ -862,23 +862,34 @@ export default function GamificacionPage() {
                       <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); if(formularioEnvaseValido) setConfirmandoEnvase(true); }}>
                         <div className="text-left">
                           <label className="text-[10px] font-black text-blue-600 uppercase mb-2 block tracking-widest ml-1">Cliente *</label>
-                          <input required placeholder="NOMBRE..." value={formEnvase.cliente} onChange={(e) => setFormEnvase({ ...formEnvase, cliente: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-sm font-black text-slate-900 focus:border-blue-600 outline-none uppercase" />
+                          <input required value={formEnvase.cliente} onChange={(e) => setFormEnvase({ ...formEnvase, cliente: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-sm font-black text-slate-900 focus:border-blue-600 outline-none uppercase" />
                         </div>
                         <div className="text-left">
                           <label className="text-[10px] font-black text-blue-600 uppercase mb-2 block tracking-widest ml-1">Envase *</label>
                           <select required value={formEnvase.envase} onChange={(e) => setFormEnvase({ ...formEnvase, envase: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-sm font-black text-slate-900 outline-none focus:border-blue-600 uppercase cursor-pointer">
                             <option value="">SELECCIONAR...</option>
-                            {["Pirañita 192ml", "Envase 296ml", "Inca Kola 1L", "Coca Cola 1L", "Inca K. 1.5L", "Coca C. 1.5L", "Fanta 1.5L", "Inca Gordita", "Inca K. 2.5L", "Coca C. 2.5L", "Cerveza 630ML", "Cerveza 1L"].map(env => <option key={env} value={env}>{env}</option>)}
+                            <option value="Pirañita 192ml">Pirañita 192ml</option>
+                            <option value="Envase 296ml">Envase 296ml</option>
+                            <option value="Inca Kola 1L">🟡 Inca Kola 1L</option>
+                            <option value="Coca Cola 1L">🔴 Coca Cola 1L</option>
+                            <option value="Inca K. 1.5L">🟡 Inca K. 1.5L</option>
+                            <option value="Coca C. 1.5L">🔴 Coca C. 1.5L</option>
+                            <option value="Fanta 1.5L">🟨 Fanta 1.5L</option>
+                            <option value="Inca Gordita">🟡 Inca Gordita</option>
+                            <option value="Inca K. 2.5L">🟡 Inca K. 2.5L</option>
+                            <option value="Coca C. 2.5L">🔴 Coca C. 2.5L</option>
+                            <option value="Cerveza 630ML">🍺 Cerveza 630ML</option>
+                            <option value="Cerveza 1L">🍺 Cerveza 1L</option>
                           </select>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2 text-left">
-                            <label className="text-[9px] font-black text-blue-600 block">CANTIDAD *</label>
-                            <input required type="number" placeholder="0" value={formEnvase.cantidad} onChange={(e) => setFormEnvase({ ...formEnvase, cantidad: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-center text-xl font-black text-slate-900 focus:border-blue-600 outline-none" />
+                            <label className="text-[10px] font-black text-blue-600 block">CANTIDAD *</label>
+                            <input required type="number" value={formEnvase.cantidad} onChange={(e) => setFormEnvase({ ...formEnvase, cantidad: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-center text-xl font-black text-slate-900 focus:border-blue-600 outline-none" />
                           </div>
                           <div className="space-y-2 text-left">
-                            <label className="text-[9px] font-black text-blue-600 text-center block">S/ GARANTÍA *</label>
-                            <input required type="number" step="0.10" placeholder="0.00" value={formEnvase.dinero} onChange={(e) => setFormEnvase({ ...formEnvase, dinero: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-center text-xl font-black text-slate-900 focus:border-blue-600 outline-none font-mono" />
+                            <label className="text-[10px] font-black text-blue-600 text-center block">S/ GARANTÍA *</label>
+                            <input required type="number" min="0.50" step="0.5" value={formEnvase.dinero} onChange={(e) => setFormEnvase({ ...formEnvase, dinero: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-center text-xl font-black text-slate-900 focus:border-blue-600 outline-none font-mono" />
                           </div>
                         </div>
                         <div className="flex bg-slate-100 p-1 rounded-2xl">
