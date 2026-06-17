@@ -161,19 +161,33 @@ function ProveedoresContent() {
             Gestión de <span className="text-indigo-600">Proveedores</span>
           </h2>
         </div>
-        <div>
-          <button
-            type="button"
-            onClick={() => setVerMantenimiento(!verMantenimiento)}
-            className={`px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-sm border ${
-              verMantenimiento 
-                ? "bg-slate-900 text-white border-slate-900" 
-                : "bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50"
-            }`}
-          >
-            {verMantenimiento ? "✕ Ocultar Edición" : "⚙️ Ajustes Proveedores"}
-          </button>
-        </div>
+        {/* Contenedor principal de los botones */}
+<div className="flex items-center gap-3"> {/* gap-3 da espacio entre botones */}
+  
+  {/* TU BOTÓN DE AJUSTES */}
+  <button
+    type="button"
+    onClick={() => setVerMantenimiento(!verMantenimiento)}
+    className={`px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-sm border ${
+      verMantenimiento 
+        ? "bg-slate-900 text-white border-slate-900" 
+        : "bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+    }`}
+  >
+    {verMantenimiento ? "✕ Cerrar Panel" : "⚙️ Ajustes Proveedores"}
+  </button>
+
+  {/* NUEVO BOTÓN A LA DERECHA */}
+  <a
+    href="../registro/proveedores"
+    target="_blank"
+    rel="noopener noreferrer"
+    className="px-5 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-indigo-700 transition-all shadow-sm"
+  >
+    NUEVO PEDIDO
+  </a>
+
+</div>
       </div>
 
       {/* PANEL DE MANTENIMIENTO */}
