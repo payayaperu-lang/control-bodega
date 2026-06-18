@@ -1,4 +1,22 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+
 export default function Home() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const auth = localStorage.getItem("auth");
+    const role = localStorage.getItem("userRole");
+
+    if (auth && role) {
+      // Redirección inteligente si ya está logueado
+      if (role === "admin") router.replace("/dashboard");
+      else router.replace("/registro"); // Ajusta esta ruta según tu archivo de Registro
+    }
+  }, [router]);
+
   console.log("¿URL detectada?:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "SÍ" : "NO");
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-700 to-indigo-900 text-white flex items-center justify-center px-6">
