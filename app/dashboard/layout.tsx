@@ -260,7 +260,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Link href="/dashboard/productos" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/dashboard/productos")}`}>🥨 PRODUCTOS FYS</Link>
           <Link href="/dashboard/dsobrante" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/dashboard/dsobrante")}`}>💵 DINERO SOBRANTE</Link>
           <Link href="/dashboard/proveedores" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/dashboard/proveedores")}`}>🚚 PROVEEDORES</Link>
-          <Link href="/dashboard/abastecimiento" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs transition-all ${isActive("/dashboard/abastecimiento")}`}>🚚 ABASTECIMIENTO</Link>
         </nav>
         <button onClick={() => { localStorage.removeItem("auth"); router.push("/login"); }} className="mt-auto w-full bg-slate-800 text-slate-400 py-4 rounded-2xl text-[10px] font-black uppercase">Cerrar Sesión 🚪</button>
       </aside>

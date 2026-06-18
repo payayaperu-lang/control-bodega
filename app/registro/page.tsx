@@ -3,9 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from "../lib/supabase";
 
-// ==========================================
 // CONFIGURACIÓN DE API
-// ==========================================
 const GIPHY_API_KEY = "DiZzlCrJVUFnHeMDEs9UC265nVW2KtOS"; 
 
 // ==========================================
@@ -38,11 +36,169 @@ const GALERIA_GIFS_DB = [
   { id: 'g8', url: 'https://media.giphy.com/media/3o85xwxr06YNoFdSbm/giphy.gif', tag: 'triste error mal' },
 ];
 
+// ==========================================
+// COMPONENTES MODULARES (ENVASES)
+// ==========================================
+
+const FormularioEnvase = ({ formEnvase, setFormEnvase, formularioEnvaseValido, setConfirmandoEnvase, horaActual }: any) => {
+  return (
+    <div className="bg-white p-6 sm:p-8 rounded-[2rem] shadow-xl border-b-[10px] border-blue-600 animate-in fade-in zoom-in duration-300 relative">
+      {/* SELECTOR DE TRABAJADOR DISCRETO */}
+      <div className="absolute top-6 right-1 flex items-center gap-1 opacity-80 hover:opacity-100 transition-opacity focus-within:opacity-100 z-10">
+        <select 
+          value={formEnvase.trabajador || ""}
+          onChange={(e) => setFormEnvase({...formEnvase, trabajador: e.target.value})}
+          className="text-[11.5px] font-black uppercase tracking-wider bg-transparent text-slate-600 outline-none cursor-pointer appearance-none text-right"
+        >
+          <option value="Catherine">{horaActual < 16 ? "Catherine" : "Catherine"}</option>
+          <option value="María">María</option>
+          <option value="Axel">Axel</option>
+        </select>
+        <svg className="w-3 h-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+      </div>
+
+      <h3 className="text-xl font-black text-slate-900 uppercase text-center mb-6 italic">Nuevo Envase</h3>
+      
+      <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); if(formularioEnvaseValido) setConfirmandoEnvase(true); }}>
+        <div className="text-left">
+          <label className="text-[10px] font-black text-blue-600 uppercase mb-2 block tracking-widest ml-1">Cliente *</label>
+          <input required value={formEnvase.cliente} onChange={(e) => setFormEnvase({ ...formEnvase, cliente: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-sm font-black text-slate-900 focus:border-blue-600 outline-none uppercase" />
+        </div>
+        <div className="text-left">
+          <label className="text-[10px] font-black text-blue-600 uppercase mb-2 block tracking-widest ml-1">Envase *</label>
+          <select required value={formEnvase.envase} onChange={(e) => setFormEnvase({ ...formEnvase, envase: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-sm font-black text-slate-900 outline-none focus:border-blue-600 uppercase cursor-pointer">
+            <option value="">SELECCIONAR...</option>
+            <option value="Pirañita 192ml">Pirañita 192ml</option>
+            <option value="Envase 296ml">Envase 296ml</option>
+            <option value="Inca Kola 1L">🟡 Inca Kola 1L</option>
+            <option value="Coca Cola 1L">🔴 Coca Cola 1L</option>
+            <option value="Inca K. 1.5L">🟡 Inca K. 1.5L</option>
+            <option value="Coca C. 1.5L">🔴 Coca C. 1.5L</option>
+            <option value="Fanta 1.5L">🟨 Fanta 1.5L</option>
+            <option value="Inca Gordita">🟡 Inca Gordita</option>
+            <option value="Inca K. 2.5L">🟡 Inca K. 2.5L</option>
+            <option value="Coca C. 2.5L">🔴 Coca C. 2.5L</option>
+            <option value="Cerveza 630ML">🍺 Cerveza 630ML</option>
+            <option value="Cerveza 1L">🍺 Cerveza 1L</option>
+          </select>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2 text-left">
+            <label className="text-[10px] font-black text-blue-600 block">CANTIDAD *</label>
+            <input required type="number" value={formEnvase.cantidad} onChange={(e) => setFormEnvase({ ...formEnvase, cantidad: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-center text-xl font-black text-slate-900 focus:border-blue-600 outline-none" />
+          </div>
+          <div className="space-y-2 text-left">
+            <label className="text-[10px] font-black text-blue-600 text-center block">S/ GARANTÍA *</label>
+            <input required type="number" min="0.50" step="0.5" value={formEnvase.dinero} onChange={(e) => setFormEnvase({ ...formEnvase, dinero: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-center text-xl font-black text-slate-900 focus:border-blue-600 outline-none font-mono" />
+          </div>
+        </div>
+        <div className="flex bg-slate-100 p-1 rounded-2xl">
+          <button type="button" onClick={() => setFormEnvase({...formEnvase, pago: 'Efectivo'})} className={`flex-1 py-3 rounded-xl text-[10px] font-black transition-all ${formEnvase.pago === 'Efectivo' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}>EFECTIVO</button>
+          <button type="button" onClick={() => setFormEnvase({...formEnvase, pago: 'Yape'})} className={`flex-1 py-3 rounded-xl text-[10px] font-black transition-all ${formEnvase.pago === 'Yape' ? 'bg-white text-purple-600 shadow-sm' : 'text-slate-400'}`}>YAPE</button>
+        </div>
+        <button type="submit" disabled={!formularioEnvaseValido} className={`w-full font-black py-5 rounded-2xl shadow-xl uppercase text-xs tracking-widest border-b-4 transition-all ${formularioEnvaseValido ? 'bg-blue-600 text-white border-blue-900 active:border-b-0 active:translate-y-1' : 'bg-slate-200 text-slate-400 border-slate-300 cursor-not-allowed'}`}>REGISTRAR SALIDA</button>
+      </form>
+    </div>
+  );
+};
+
+const HistorialEnvases = ({ statsEnvases, envasesFiltrados, nuevoIdEnvase, formatFechaCorta, toggleDevuelto }: any) => {
+  return (
+    <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300 w-full mx-auto">
+      <div className="bg-slate-900 p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-center gap-4 border-b border-blue-500">
+        <div className="text-left w-full sm:w-auto"><h3 className="text-lg font-black text-white uppercase italic tracking-tighter">HISTORIAL RECIENTE</h3></div>
+        <div className="flex gap-6 w-full sm:w-auto justify-between sm:justify-end">
+          <div className="flex flex-col text-right"><span className="text-[8px] font-black text-emerald-400 uppercase mb-1">EFECTIVO</span><span className="text-xl font-black text-white font-mono">S/ {statsEnvases.cashPendiente.toFixed(2)}</span></div>
+          <div className="flex flex-col text-right"><span className="text-[8px] font-black text-purple-400 uppercase mb-1">YAPE</span><span className="text-xl font-black text-white font-mono">S/ {statsEnvases.yapePendiente.toFixed(2)}</span></div>
+        </div>
+      </div>
+      <div className="flex-1 p-2 sm:p-4 bg-slate-50 max-h-[500px] overflow-y-auto">
+        <div className="sm:hidden space-y-3">
+          {envasesFiltrados.map((item: any) => {
+            const { dia, mes, esHoy } = formatFechaCorta(item.fecha);
+            const esReciente = item.id === nuevoIdEnvase;
+            return (
+              <div key={item.id} className={`bg-white p-4 rounded-3xl border flex items-center justify-between transition-all duration-700 ${esReciente ? 'scale-[1.02] border-blue-400 ring-2 ring-blue-200 animate-pulse' : 'border-slate-100'}`}>
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col items-center justify-center">
+                    <div className={`flex flex-col items-center p-2 rounded-xl w-12 border ${esReciente || esHoy ? 'bg-blue-600 border-blue-700 text-white' : 'bg-white border-slate-200'}`}>
+                      <span className="text-md font-black">{dia}</span><span className={`text-[9px] uppercase font-bold ${esReciente || esHoy ? 'text-blue-100' : 'text-slate-400'}`}>{mes}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[12px] font-black text-slate-600 uppercase">{item.cliente}</p>
+                    <p className="text-[11px] font-black uppercase italic">{item.envase}</p>
+                    {item.trabajador && <p className="text-[8px] font-black text-slate-400 mt-1">TRAB: {item.trabajador.toUpperCase()}</p>}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-black font-mono">S/ {Number(item.dinero).toFixed(2)}</p>
+                  <button onClick={() => toggleDevuelto(item.id, item.devuelto)} className={`mt-1 text-[8px] font-black px-3 py-1 rounded-lg ${item.devuelto === 1 ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                    {item.devuelto === 1 ? 'RECIBIDO' : 'PENDIENTE'}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="hidden sm:block">
+          <table className="w-full border-separate border-spacing-y-2">
+            <thead>
+              <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">
+                <th className="px-4 py-2">Fecha</th><th className="px-4 py-2">Detalle</th><th className="px-4 py-2 text-center">Cant.</th><th className="px-4 py-2 text-right">Garantía</th><th className="px-4 py-2 text-center">Acc.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {envasesFiltrados.map((item: any) => {
+                const { dia, mes, esHoy } = formatFechaCorta(item.fecha);
+                const esReciente = item.id === nuevoIdEnvase;
+                return (
+                  <tr key={item.id} className={`transition-all duration-1000 ease-in-out ${esReciente ? 'scale-[1.01]' : 'scale-100'}`}>
+                    <td className={`px-4 py-3 rounded-l-2xl transition-colors duration-1000 ${esReciente ? 'bg-blue-600' : 'bg-white border-y border-l border-slate-100'}`}>
+                      <div className="flex flex-col items-center justify-center">
+                        <div className={`flex flex-col items-center justify-center w-10 h-10 rounded-xl border ${esReciente ? 'bg-white text-blue-600 border-white' : esHoy ? 'bg-blue-600 text-white border-blue-700' : 'bg-slate-50 text-slate-900 border-slate-200'}`}>
+                          <span className="text-sm font-black leading-none">{dia}</span><span className="text-[7px] font-black mt-1 uppercase">{mes}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className={`px-4 py-3 ${esReciente ? 'bg-blue-600' : 'bg-white border-y border-slate-100'}`}>
+                      <p className={`text-[10px] font-black uppercase ${esReciente ? 'text-blue-100' : 'text-slate-400'}`}>{item.cliente}</p>
+                      <p className={`text-xs font-black uppercase italic ${esReciente ? 'text-white' : 'text-slate-900'}`}>{item.envase}</p>
+                      {item.trabajador && <p className={`text-[9px] uppercase mt-1 font-bold ${esReciente ? 'text-blue-200' : 'text-slate-400'}`}>Atendido: {item.trabajador}</p>}
+                    </td>
+                    <td className={`px-4 py-3 text-center ${esReciente ? 'bg-blue-600' : 'bg-white border-y border-slate-100'}`}>
+                      <span className={`text-lg font-black font-mono ${esReciente ? 'text-white' : 'text-blue-600'}`}>{item.cantidad}</span>
+                    </td>
+                    <td className={`px-4 py-3 text-right ${esReciente ? 'bg-blue-600' : 'bg-white border-y border-slate-100'}`}>
+                      <p className={`text-md font-black font-mono ${esReciente ? 'text-white' : 'text-slate-900'}`}>S/ {Number(item.dinero).toFixed(2)}</p>
+                      <span className={`text-[7px] font-black uppercase px-2 py-0.5 rounded inline-block mt-1 ${esReciente ? 'bg-blue-400 text-white' : (item.pago === 'Yape' ? 'bg-purple-100 text-purple-600' : 'bg-emerald-100 text-emerald-600')}`}>{item.pago}</span>
+                    </td>
+                    <td className={`px-4 py-3 rounded-r-2xl text-center ${esReciente ? 'bg-blue-600' : 'bg-white border-y border-r border-slate-100'}`}>
+                      <button onClick={() => toggleDevuelto(item.id, item.devuelto)} className={`text-[9px] font-black px-3 py-2 rounded-xl border-2 transition-all ${item.devuelto === 1 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                        {item.devuelto === 1 ? 'RECIBIDO' : 'PENDIENTE'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+// ==========================================
+// PÁGINA PRINCIPAL
+// ==========================================
 export default function GamificacionPage() {
   // ==========================================
   // ESTADOS GAMIFICACIÓN
   // ==========================================
-  const [userXP, setUserXP] = useState<number>(0); 
+  const [userXP, setUserXP] = useState<number>(0);
   const [puntos, setPuntos] = useState<number>(0); 
   const XP_POR_NIVEL = 1000;
   const userLevel = Math.floor(userXP / XP_POR_NIVEL) + 1;
@@ -68,13 +224,38 @@ export default function GamificacionPage() {
   const [fechaHasta, setFechaHasta] = useState(dates.domingo);
 
   // ==========================================
+  // ESTADOS Y LÓGICA DE TRABAJADOR
+  // ==========================================
+  const [horaActual, setHoraActual] = useState(new Date().getHours());
+  const [turnoActual, setTurnoActual] = useState("");
+
+  const determinarTrabajadorTurno = () => {
+    const hoy = new Date();
+    const hora = hoy.getHours();
+    const dia = hoy.getDay(); // 0 = Domingo, 6 = Sábado
+
+    if (hora < 16) {
+      return "Catherine"; // Mañanas (Lunes a Domingo)
+    } else {
+      if (dia === 0 || dia === 6) {
+        return "Axel"; // Tardes de fin de semana
+      } else {
+        return "María"; // Tardes de Lunes a Viernes
+      }
+    }
+  };
+
+  // ==========================================
   // ESTADOS ENVASES
   // ==========================================
   const [registrosEnvases, setRegistrosEnvases] = useState<any[]>([]);
   const [confirmandoEnvase, setConfirmandoEnvase] = useState(false);
   const [nuevoIdEnvase, setNuevoIdEnvase] = useState<number | null>(null);
   const [filtroEstadoEnvase, setFiltroEstadoEnvase] = useState("pendientes");
-  const [formEnvase, setFormEnvase] = useState({ cliente: "", envase: "", cantidad: "1", dinero: "2", pago: "Efectivo" });
+
+  const [formEnvase, setFormEnvase] = useState({ 
+    cliente: "", envase: "", cantidad: "1", dinero: "2", pago: "Efectivo", trabajador: "" 
+  });
 
   const formularioEnvaseValido = useMemo(() => {
     return (
@@ -103,6 +284,7 @@ export default function GamificacionPage() {
   const [registrosDinero, setRegistrosDinero] = useState<any[]>([]);
   const [confirmandoDinero, setConfirmandoDinero] = useState(false);
   const [nuevoIdDinero, setNuevoIdDinero] = useState<number | null>(null);
+
   const [formDinero, setFormDinero] = useState({ cajero: '', dinero: '', tipo: "1" });
   const listaCajeros = ["Katherine", "Maria", "Enma", "Nicol", "Axel"];
 
@@ -127,6 +309,7 @@ export default function GamificacionPage() {
   const [registrosInventario, setRegistrosInventario] = useState<any[]>([]);
   const [confirmandoInventario, setConfirmandoInventario] = useState(false);
   const [nuevoIdInventario, setNuevoIdInventario] = useState<number | null>(null);
+
   const [formInventario, setFormInventario] = useState({ producto: "", cantidad: "", precio: "" });
 
   const formularioInventarioValido = useMemo(() => {
@@ -143,33 +326,8 @@ export default function GamificacionPage() {
   }, [registrosInventario]);
 
   // ==========================================
-  // ESTADOS PROVEEDORES Y PEDIDOS
-  // ==========================================
-  const [formProveedor, setFormProveedor] = useState({ proveedor: '', producto: '', cantidad: '' });
-  const [opcionesProveedores, setOpcionesProveedores] = useState<any[]>([]);
-  const [pedidosDB, setPedidosDB] = useState<any[]>([]);
-  const [diaAbierto, setDiaAbierto] = useState<string | null>(null);
-  const diasSemana = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
-
-  const pedidosActivosFiltrados = useMemo(() => {
-    return pedidosDB.filter((pedido) => {
-      if (pedido.oculto) return false;
-      if (pedido.recibido) return (new Date().getTime() - new Date(pedido.creado_en).getTime()) < (72 * 60 * 60 * 1000); 
-      return true;
-    });
-  }, [pedidosDB]);
-
-  const proveedoresDelDiaActivo = useMemo(() => {
-    return opcionesProveedores.filter((p) => p.dia_pedido?.toLowerCase() === diaAbierto);
-  }, [opcionesProveedores, diaAbierto]);
-
-  const opcionesSelectProveedores = useMemo(() => {
-    const filtrados = diaAbierto ? opcionesProveedores.filter(p => p.dia_pedido?.toLowerCase() === diaAbierto.toLowerCase()) : opcionesProveedores;
-    return Array.from(new Set(filtrados.map(p => p.nombre.toUpperCase()))).sort();
-  }, [opcionesProveedores, diaAbierto]);
-
-  // ==========================================
   // ESTADOS MURO Y MASCOTA
+  // ==========================================
   const [animacionPersonaje, setAnimacionPersonaje] = useState<'idle' | 'saludar' | 'bailar' | 'dormir'>('idle');
   const [mensajeMascota, setMensajeMascota] = useState<string>("¡Hola! Listo para registrar.");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -177,8 +335,7 @@ export default function GamificacionPage() {
   const [nuevaAcotacion, setNuevaAcotacion] = useState('');
   const [tipoPost, setTipoPost] = useState<'general'|'alerta'|'logro'>('general');
   const [feedPosts, setFeedPosts] = useState<LogActividad[]>([]);
-  
-  // NUEVO ESTADO: Ocultar o mostrar mensajes automáticos del sistema
+
   const [mostrarMensajesSistema, setMostrarMensajesSistema] = useState(false);
 
   // ESTADOS GIPHY
@@ -195,19 +352,37 @@ export default function GamificacionPage() {
     return [
       { id: 'l1', titulo: 'Cazador de Mermas', progreso: registrosInventario.filter(r => parseFloat(r.cantidad) > 0).length, total: 5, icono: '🔍' },
       { id: 'l2', titulo: 'Rey del Retorno', progreso: registrosEnvases.length, total: 20, icono: '♻️' },
-      { id: 'l3', titulo: 'Negociador', progreso: pedidosDB.filter(p => p.recibido).length, total: 10, icono: '🚚' },
+      { id: 'l3', titulo: 'Negociador', progreso: registrosEnvases.length, total: 20, icono: '🔍'},
     ];
-  }, [registrosEnvases, registrosInventario, pedidosDB]);
+  }, [registrosEnvases, registrosInventario]);
 
   // ==========================================
   // EFECTOS Y FETCH DE DATOS
   // ==========================================
+
+  // Efecto para inicializar y trackear el turno del trabajador
+  useEffect(() => {
+    const inicial = determinarTrabajadorTurno();
+    setTurnoActual(inicial);
+    setFormEnvase(prev => ({ ...prev, trabajador: inicial }));
+
+    const interval = setInterval(() => {
+      setHoraActual(new Date().getHours());
+      const nuevoTurno = determinarTrabajadorTurno();
+      if (nuevoTurno !== turnoActual) {
+        setTurnoActual(nuevoTurno);
+        setFormEnvase(prev => ({ ...prev, trabajador: nuevoTurno }));
+      }
+    }, 60000); // Revisa cada minuto
+
+    return () => clearInterval(interval);
+  }, [turnoActual]);
+
+
   useEffect(() => {
     fetchMuroYXP();
-    // Pre-cargamos data general para los logros también
     fetchEnvases();
     fetchInventario();
-    fetchPedidos();
   }, []);
 
   async function fetchMuroYXP() {
@@ -233,13 +408,6 @@ export default function GamificacionPage() {
   useEffect(() => {
     if (accionActiva === 'inventario') fetchInventario();
   }, [accionActiva, fechaDesde, fechaHasta, tipoInventario]);
-
-  useEffect(() => {
-    if (accionActiva === 'proveedores') {
-      fetchProveedores();
-      fetchPedidos();
-    }
-  }, [accionActiva]);
 
   // Búsqueda GIPHY
   useEffect(() => {
@@ -306,16 +474,6 @@ export default function GamificacionPage() {
     setRegistrosInventario(data || []);
   }
 
-  async function fetchProveedores() {
-    const { data } = await supabase.from('proveedores').select('*').order('nombre');
-    setOpcionesProveedores(data || []);
-  }
-
-  async function fetchPedidos() {
-    const { data } = await supabase.from('pedidos').select('*').order('creado_en', { ascending: false });
-    setPedidosDB(data || []);
-  }
-
   // ==========================================
   // LÓGICA DE DIBUJO DEL HUEVO (CANVAS)
   // ==========================================
@@ -330,6 +488,7 @@ export default function GamificacionPage() {
       tick += 0.05;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const cx = canvas.width / 2;
+      
       const cy = canvas.height / 2 + 10;
       let bodyY = cy; let rotation = 0; let wave = 0;
 
@@ -337,23 +496,32 @@ export default function GamificacionPage() {
       else if (animacionPersonaje === 'saludar') { wave = Math.sin(tick * 4) * 0.5; }
       else if (animacionPersonaje === 'dormir') { bodyY += Math.sin(tick * 1) * 2; }
 
-      ctx.fillStyle = 'rgba(0,0,0,0.05)'; ctx.beginPath(); ctx.ellipse(cx, cy + 55, 30 + (animacionPersonaje === 'bailar' ? Math.abs(Math.sin(tick * 3)) * 5 : 0), 8, 0, 0, 2 * Math.PI); ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.05)'; ctx.beginPath(); ctx.ellipse(cx, 
+      cy + 55, 30 + (animacionPersonaje === 'bailar' ? Math.abs(Math.sin(tick * 3)) * 5 : 0), 8, 0, 0, 2 * Math.PI);
+      ctx.fill();
       ctx.save(); ctx.translate(cx, bodyY); ctx.rotate(rotation);
       const breatheY = animacionPersonaje === 'idle' ? Math.sin(tick) * 3 : 0;
       const breatheX = animacionPersonaje === 'idle' ? Math.cos(tick) * 1.5 : 0;
       
-      ctx.fillStyle = animacionPersonaje === 'dormir' ? '#fdba74' : '#fb923c'; ctx.beginPath(); ctx.ellipse(0, 10, 38 + breatheX, 42 + breatheY, 0, 0, 2 * Math.PI); ctx.fill();
+      ctx.fillStyle = animacionPersonaje === 'dormir' ?
+      '#fdba74' : '#fb923c'; ctx.beginPath(); ctx.ellipse(0, 10, 38 + breatheX, 42 + breatheY, 0, 0, 2 * Math.PI); ctx.fill();
       ctx.strokeStyle = '#ea580c'; ctx.lineWidth = 3; ctx.stroke();
       if (animacionPersonaje === 'saludar' || animacionPersonaje === 'bailar') {
-        ctx.strokeStyle = '#ea580c'; ctx.lineWidth = 8; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(35, 10); ctx.quadraticCurveTo(55, -10 + (wave * 20), 45, -30 + (wave * 20)); ctx.stroke();
+        ctx.strokeStyle = '#ea580c';
+        ctx.lineWidth = 8; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(35, 10); ctx.quadraticCurveTo(55, -10 + (wave * 20), 45, -30 + (wave * 20));
+        ctx.stroke();
       }
       ctx.fillStyle = '#1e293b';
       if (animacionPersonaje === 'dormir') {
-        ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-15, 0); ctx.lineTo(-7, 0); ctx.stroke(); ctx.beginPath(); ctx.moveTo(7, 0); ctx.lineTo(15, 0); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 15, 4, 0, Math.PI * 2); ctx.fill(); 
+        ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-15, 0); ctx.lineTo(-7, 0);
+        ctx.stroke(); ctx.beginPath(); ctx.moveTo(7, 0); ctx.lineTo(15, 0); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 15, 4, 0, Math.PI * 2); ctx.fill();
       } else {
-        const parpadeo = Math.sin(tick * 0.5) > 0.96 ? 1 : 8; ctx.beginPath(); ctx.ellipse(-12, 0, 5, parpadeo, 0, 0, 2 * Math.PI); ctx.fill(); ctx.beginPath(); ctx.ellipse(12, 0, 5, parpadeo, 0, 0, 2 * Math.PI); ctx.fill();
-        ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(0, 10, animacionPersonaje === 'bailar' ? 12 : 8, 0, Math.PI, false); ctx.stroke();
+        const parpadeo = Math.sin(tick * 0.5) > 0.96 ?
+        1 : 8; ctx.beginPath(); ctx.ellipse(-12, 0, 5, parpadeo, 0, 0, 2 * Math.PI); ctx.fill(); ctx.beginPath();
+        ctx.ellipse(12, 0, 5, parpadeo, 0, 0, 2 * Math.PI); ctx.fill();
+        ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 2.5; ctx.beginPath();
+        ctx.arc(0, 10, animacionPersonaje === 'bailar' ? 12 : 8, 0, Math.PI, false); ctx.stroke();
       }
       ctx.restore();
       animationFrameId = requestAnimationFrame(render);
@@ -376,7 +544,6 @@ export default function GamificacionPage() {
       xp: xpGanada, 
       tipo: 'logro' 
     }]);
-
     setMensajeMascota(`¡Bien! +${xpGanada} XP 🪙`); 
     setAnimacionPersonaje('bailar');
     fetchMuroYXP();
@@ -385,13 +552,21 @@ export default function GamificacionPage() {
   const guardarRegistroEnvase = async () => {
     if (!formularioEnvaseValido) return;
     const { data, error } = await supabase.from("envases").insert([{
-      cliente: formEnvase.cliente.toUpperCase(), envase: formEnvase.envase, cantidad: Number(formEnvase.cantidad), dinero: Number(formEnvase.dinero), pago: formEnvase.pago, fecha: new Date().toISOString(), devuelto: 0 
+      cliente: formEnvase.cliente.toUpperCase(), 
+      envase: formEnvase.envase, 
+      cantidad: Number(formEnvase.cantidad), 
+      dinero: Number(formEnvase.dinero), 
+      pago: formEnvase.pago, 
+      trabajador: formEnvase.trabajador, // Se incluye el trabajador actual
+      fecha: new Date().toISOString(), 
+      devuelto: 0 
     }]).select();
 
     if (!error && data) {
       setNotificacion(`Envase guardado exitosamente`);
       ejecutarMision(10, 5, `♻️ Retorno registrado: ${formEnvase.envase}`);
-      setFormEnvase({ cliente: "", envase: "", cantidad: "", dinero: "", pago: "Efectivo" });
+      // Mantiene al trabajador logeado
+      setFormEnvase({ cliente: "", envase: "", cantidad: "", dinero: "", pago: "Efectivo", trabajador: formEnvase.trabajador });
       setConfirmandoEnvase(false);
       setNuevoIdEnvase(data[0].id);
       fetchEnvases();
@@ -411,7 +586,7 @@ export default function GamificacionPage() {
     const { data, error } = await supabase.from("dine_sobrante").insert([{
       cajero: formDinero.cajero, dinero: parseFloat(formDinero.dinero), tipo: parseInt(formDinero.tipo), fecha: dates.hoyStr
     }]).select();
-
+    
     if (!error && data) {
       setNotificacion(`Ingreso de ${formDinero.cajero} guardado`);
       ejecutarMision(30, 15, `💵 Sobrante reportado: S/ ${formDinero.dinero}`);
@@ -419,7 +594,7 @@ export default function GamificacionPage() {
       setConfirmandoDinero(false);
       setNuevoIdDinero(data[0].id);
       fetchDineroSobrante();
-      setVistaModal('tabla'); 
+      setVistaModal('tabla');
       setTimeout(() => setNuevoIdDinero(null), 8000);
     }
   }
@@ -453,85 +628,6 @@ export default function GamificacionPage() {
     const mes = fecha.toLocaleString('es-ES', { month: 'short' }).replace('.', '').toUpperCase();
     const horaFormateada = fecha.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'}).toUpperCase();
     return { dia, mes, horaFormateada, esHoy };
-  };
-
-  const manejarEnvioPedido = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formProveedor.producto.trim() || !formProveedor.cantidad || !formProveedor.proveedor) {
-      alert("Completa todos los campos"); return;
-    }
-    setLoadingDB(true);
-    try {
-      const { error } = await supabase.from('pedidos').insert([{ 
-        proveedor: formProveedor.proveedor.toUpperCase(), 
-        producto: formProveedor.producto.toUpperCase().trim(), 
-        cantidad: `${formProveedor.cantidad} UNIDADES`, 
-        creado_en: new Date().toISOString(), 
-        recibido: false 
-      }]);
-      if (!error) {
-        setNotificacion(`Pedido guardado`); 
-        ejecutarMision(15, 10, `🚚 Pedido registrado para: ${formProveedor.proveedor}`);
-        setFormProveedor({ ...formProveedor, producto: '', cantidad: '' }); 
-        fetchPedidos();
-        setVistaModal('tabla');
-      }
-    } catch (err) {} finally { setLoadingDB(false); }
-  };
-
-  const marcarGrupoComoRecibido = async (provName: string, ids: number[]) => {
-    await Promise.all(ids.map(id => supabase.from("pedidos").update({ recibido: true }).eq("id", id)));
-    ejecutarMision(25, 15, `✅ Mercadería recibida de: ${provName}`);
-    fetchPedidos();
-  };
-
-  const revertirGrupoProveedor = async (provName: string, ids: number[]) => {
-    await Promise.all(ids.map(id => supabase.from("pedidos").update({ recibido: false }).eq("id", id)));
-    fetchPedidos();
-    setNotificacion("🔄 Grupo revertido a 'Pendiente'.");
-  };
-
-  const ocultarGrupoProveedor = async (ids: number[]) => {
-    if (!window.confirm("¿Ocultar este grupo del monitor?")) return;
-    await Promise.all(ids.map(id => supabase.from("pedidos").update({ oculto: true }).eq("id", id)));
-    fetchPedidos();
-  };
-
-  const eliminarGrupoProveedor = async (provName: string, ids: number[]) => {
-    if (!window.confirm(`⚠️ ¿Estás seguro de eliminar TODO el bloque de pedidos de "${provName.toUpperCase()}"?`)) return;
-    await Promise.all(ids.map(id => supabase.from("pedidos").delete().eq("id", id)));
-    fetchPedidos();
-  };
-
-  const eliminarPedidoIndividual = async (id: number) => {
-    if (!window.confirm("¿Eliminar este producto del pedido?")) return;
-    await supabase.from("pedidos").delete().eq("id", id);
-    fetchPedidos();
-  };
-
-  const revertirPedidoIndividual = async (id: number) => {
-    await supabase.from("pedidos").update({ recibido: false }).eq("id", id);
-    fetchPedidos();
-  };
-
-  const editarPedidoIndividual = async (item: any) => {
-    const nuevoNombre = window.prompt(`Modificar nombre del producto:`, item.producto);
-    if (!nuevoNombre || nuevoNombre.trim() === "") return;
-    const cantidadStr = item.cantidad ? String(item.cantidad) : "";
-    const cantidadLimpia = cantidadStr.replace(" UNIDADES", "").trim();
-    const nuevaCantidad = window.prompt(`Modificar cantidad para "${nuevoNombre.toUpperCase()}":`, cantidadLimpia);
-    if (!nuevaCantidad || nuevaCantidad.trim() === "" || isNaN(Number(nuevaCantidad))) return;
-    try {
-      const { error } = await supabase.from("pedidos").update({ 
-        producto: nuevoNombre.toUpperCase().trim(), 
-        cantidad: `${nuevaCantidad} UNIDADES` 
-      }).eq("id", item.id);
-      if (error) throw error;
-      fetchPedidos();
-    } catch (err) {
-      console.error("Error al actualizar:", err);
-      alert("Hubo un problema al actualizar el pedido.");
-    }
   };
 
   return (
@@ -578,9 +674,10 @@ export default function GamificacionPage() {
               <button onClick={() => { setAccionActiva('inventario'); setVistaModal('form'); }} className="bg-orange-600 text-white p-4 rounded-2xl shadow-sm hover:scale-105 transition-all text-left">
                 <span className="text-2xl block mb-2">📦</span><span className="font-bold text-sm block">Auditoría Prod.</span>
               </button>
-              <button onClick={() => { setAccionActiva('proveedores'); setVistaModal('form'); }} className="bg-indigo-600 text-white p-4 rounded-2xl shadow-sm hover:scale-105 transition-all text-left">
-                <span className="text-2xl block mb-2">🚚</span><span className="font-bold text-sm block">Proveedores</span>
-              </button>
+              <a href="registro/proveedores" className="bg-indigo-600 text-white p-4 rounded-2xl shadow-sm hover:scale-105 transition-all text-left block">
+                <span className="text-2xl block mb-2">🚚</span>
+                <span className="font-bold text-sm block">Proveedores</span>
+              </a>
             </div>
           </section>
 
@@ -770,6 +867,8 @@ export default function GamificacionPage() {
               <p className="text-xl font-black text-slate-900 uppercase">{formEnvase.cliente}</p>
               <p className="text-2xl font-black text-blue-600 uppercase">{formEnvase.cantidad} {formEnvase.envase}</p>
               <p className="text-2xl font-black text-emerald-600 font-mono">S/ {Number(formEnvase.dinero).toFixed(2)}</p>
+              {/* VISUALIZAMOS AL TRABAJADOR EN EL RESUMEN */}
+              <p className="text-[10px] font-black text-slate-400 mt-4 uppercase">Atendido por: {formEnvase.trabajador}</p>
             </div>
             <div className="flex gap-4">
               <button onClick={() => setConfirmandoEnvase(false)} className="flex-1 bg-slate-100 text-slate-500 font-black py-4 rounded-2xl uppercase text-[11px]">CORREGIR</button>
@@ -834,155 +933,53 @@ export default function GamificacionPage() {
       ========================================= */}
       {accionActiva && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-2 sm:p-4">
-          
           <div className={`relative w-full ${vistaModal === 'tabla' ? 'max-w-2xl' : 'max-w-md'} max-h-[95vh] overflow-y-auto bg-slate-50 rounded-[2rem] sm:rounded-[3rem] shadow-2xl transition-all duration-300`}>
-            
+
             <button onClick={() => { setAccionActiva(null); setVistaModal('form'); }} className="absolute top-4 right-4 sm:top-6 sm:right-6 z-50 w-10 h-10 bg-slate-800 text-white rounded-full flex items-center justify-center font-bold hover:bg-slate-900 shadow-md">✕</button>
 
-            {/* SWITCHER GLOBAL DE VISTAS (FORM / TABLA) */}
-            <div className="flex justify-center pt-6 pb-2 relative z-40">
-              <div className="flex gap-2 bg-slate-200 p-1.5 rounded-2xl">
-                <button onClick={() => setVistaModal('form')} className={`px-6 py-2 rounded-xl text-xs font-black uppercase transition-all ${vistaModal === 'form' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                  {accionActiva === 'proveedores' ? 'Crear Pedido' : 'Registrar'}
-                </button>
-                <button onClick={() => setVistaModal('tabla')} className={`px-6 py-2 rounded-xl text-xs font-black uppercase transition-all ${vistaModal === 'tabla' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                  {accionActiva === 'proveedores' ? 'Monitor Activo' : 'Historial'}
-                </button>
-              </div>
-            </div>
-
             <div className="p-4 sm:p-8 pt-2">
-              
-              {/* MODAL ENVASES */}
-              {accionActiva === 'envases' && (
+  
+            {/* TABS PARA CAMBIAR ENTRE FORMULARIO E HISTORIAL */}
+            <div className="flex bg-slate-200 p-1 rounded-xl mb-6">
+              <button
+                onClick={() => setVistaModal('form')}
+                className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+                  vistaModal === 'form' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                ✏️ Registrar
+              </button>
+              <button
+                onClick={() => setVistaModal('tabla')}
+                className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+                  vistaModal === 'tabla' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                📋 Historial
+              </button>
+            </div>
+                      
+            {/* MODAL ENVASES */}
+            {accionActiva === 'envases' && (
                 <>
                   {vistaModal === 'form' && (
-                    <div className="bg-white p-6 sm:p-8 rounded-[2rem] shadow-xl border-b-[10px] border-blue-600 animate-in fade-in zoom-in duration-300">
-                      <h3 className="text-xl font-black text-slate-900 uppercase text-center mb-6 italic">Nuevo Envase</h3>
-                      <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); if(formularioEnvaseValido) setConfirmandoEnvase(true); }}>
-                        <div className="text-left">
-                          <label className="text-[10px] font-black text-blue-600 uppercase mb-2 block tracking-widest ml-1">Cliente *</label>
-                          <input required value={formEnvase.cliente} onChange={(e) => setFormEnvase({ ...formEnvase, cliente: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-sm font-black text-slate-900 focus:border-blue-600 outline-none uppercase" />
-                        </div>
-                        <div className="text-left">
-                          <label className="text-[10px] font-black text-blue-600 uppercase mb-2 block tracking-widest ml-1">Envase *</label>
-                          <select required value={formEnvase.envase} onChange={(e) => setFormEnvase({ ...formEnvase, envase: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-sm font-black text-slate-900 outline-none focus:border-blue-600 uppercase cursor-pointer">
-                            <option value="">SELECCIONAR...</option>
-                            <option value="Pirañita 192ml">Pirañita 192ml</option>
-                            <option value="Envase 296ml">Envase 296ml</option>
-                            <option value="Inca Kola 1L">🟡 Inca Kola 1L</option>
-                            <option value="Coca Cola 1L">🔴 Coca Cola 1L</option>
-                            <option value="Inca K. 1.5L">🟡 Inca K. 1.5L</option>
-                            <option value="Coca C. 1.5L">🔴 Coca C. 1.5L</option>
-                            <option value="Fanta 1.5L">🟨 Fanta 1.5L</option>
-                            <option value="Inca Gordita">🟡 Inca Gordita</option>
-                            <option value="Inca K. 2.5L">🟡 Inca K. 2.5L</option>
-                            <option value="Coca C. 2.5L">🔴 Coca C. 2.5L</option>
-                            <option value="Cerveza 630ML">🍺 Cerveza 630ML</option>
-                            <option value="Cerveza 1L">🍺 Cerveza 1L</option>
-                          </select>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2 text-left">
-                            <label className="text-[10px] font-black text-blue-600 block">CANTIDAD *</label>
-                            <input required type="number" value={formEnvase.cantidad} onChange={(e) => setFormEnvase({ ...formEnvase, cantidad: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-center text-xl font-black text-slate-900 focus:border-blue-600 outline-none" />
-                          </div>
-                          <div className="space-y-2 text-left">
-                            <label className="text-[10px] font-black text-blue-600 text-center block">S/ GARANTÍA *</label>
-                            <input required type="number" min="0.50" step="0.5" value={formEnvase.dinero} onChange={(e) => setFormEnvase({ ...formEnvase, dinero: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-center text-xl font-black text-slate-900 focus:border-blue-600 outline-none font-mono" />
-                          </div>
-                        </div>
-                        <div className="flex bg-slate-100 p-1 rounded-2xl">
-                          <button type="button" onClick={() => setFormEnvase({...formEnvase, pago: 'Efectivo'})} className={`flex-1 py-3 rounded-xl text-[10px] font-black transition-all ${formEnvase.pago === 'Efectivo' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}>EFECTIVO</button>
-                          <button type="button" onClick={() => setFormEnvase({...formEnvase, pago: 'Yape'})} className={`flex-1 py-3 rounded-xl text-[10px] font-black transition-all ${formEnvase.pago === 'Yape' ? 'bg-white text-purple-600 shadow-sm' : 'text-slate-400'}`}>YAPE</button>
-                        </div>
-                        <button type="submit" disabled={!formularioEnvaseValido} className={`w-full font-black py-5 rounded-2xl shadow-xl uppercase text-xs tracking-widest border-b-4 transition-all ${formularioEnvaseValido ? 'bg-blue-600 text-white border-blue-900 active:border-b-0 active:translate-y-1' : 'bg-slate-200 text-slate-400 border-slate-300 cursor-not-allowed'}`}>REGISTRAR SALIDA</button>
-                      </form>
-                    </div>
+                    <FormularioEnvase 
+                      formEnvase={formEnvase}
+                      setFormEnvase={setFormEnvase}
+                      formularioEnvaseValido={formularioEnvaseValido}
+                      setConfirmandoEnvase={setConfirmandoEnvase}
+                      horaActual={horaActual}
+                    />
                   )}
 
                   {vistaModal === 'tabla' && (
-                    <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300 w-full mx-auto">
-                      <div className="bg-slate-900 p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-center gap-4 border-b border-blue-500">
-                        <div className="text-left w-full sm:w-auto"><h3 className="text-lg font-black text-white uppercase italic tracking-tighter">HISTORIAL RECIENTE</h3></div>
-                        <div className="flex gap-6 w-full sm:w-auto justify-between sm:justify-end">
-                          <div className="flex flex-col text-right"><span className="text-[8px] font-black text-emerald-400 uppercase mb-1">EFECTIVO</span><span className="text-xl font-black text-white font-mono">S/ {statsEnvases.cashPendiente.toFixed(2)}</span></div>
-                          <div className="flex flex-col text-right"><span className="text-[8px] font-black text-purple-400 uppercase mb-1">YAPE</span><span className="text-xl font-black text-white font-mono">S/ {statsEnvases.yapePendiente.toFixed(2)}</span></div>
-                        </div>
-                      </div>
-                      <div className="flex-1 p-2 sm:p-4 bg-slate-50 max-h-[500px] overflow-y-auto">
-                        <div className="sm:hidden space-y-3">
-                          {envasesFiltrados.map((item) => {
-                            const { dia, mes, horaFormateada, esHoy } = formatFechaCorta(item.fecha);
-                            const esReciente = item.id === nuevoIdEnvase;
-                            return (
-                              <div key={item.id} className={`bg-white p-4 rounded-3xl border flex items-center justify-between transition-all duration-700 ${esReciente ? 'scale-[1.02] border-blue-400 ring-2 ring-blue-200 animate-pulse' : 'border-slate-100'}`}>
-                                <div className="flex items-center gap-3">
-                                  <div className="flex flex-col items-center justify-center">
-                                    <div className={`flex flex-col items-center p-2 rounded-xl w-12 border ${esReciente || esHoy ? 'bg-blue-600 border-blue-700 text-white' : 'bg-white border-slate-200'}`}>
-                                      <span className="text-md font-black">{dia}</span><span className={`text-[9px] uppercase font-bold ${esReciente || esHoy ? 'text-blue-100' : 'text-slate-400'}`}>{mes}</span>
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <p className="text-[12px] font-black text-slate-600 uppercase">{item.cliente}</p>
-                                    <p className="text-[11px] font-black uppercase italic">{item.envase}</p>
-                                  </div>
-                                </div>
-                                <div className="text-right">
-                                  <p className="text-sm font-black font-mono">S/ {Number(item.dinero).toFixed(2)}</p>
-                                  <button onClick={() => toggleDevuelto(item.id, item.devuelto)} className={`mt-1 text-[8px] font-black px-3 py-1 rounded-lg ${item.devuelto === 1 ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
-                                    {item.devuelto === 1 ? 'RECIBIDO' : 'PENDIENTE'}
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        <div className="hidden sm:block">
-                          <table className="w-full border-separate border-spacing-y-2">
-                            <thead>
-                              <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">
-                                <th className="px-4 py-2">Fecha</th><th className="px-4 py-2">Detalle</th><th className="px-4 py-2 text-center">Cant.</th><th className="px-4 py-2 text-right">Garantía</th><th className="px-4 py-2 text-center">Acc.</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {envasesFiltrados.map((item) => {
-                                const { dia, mes, esHoy } = formatFechaCorta(item.fecha);
-                                const esReciente = item.id === nuevoIdEnvase;
-                                return (
-                                  <tr key={item.id} className={`transition-all duration-1000 ease-in-out ${esReciente ? 'scale-[1.01]' : 'scale-100'}`}>
-                                    <td className={`px-4 py-3 rounded-l-2xl transition-colors duration-1000 ${esReciente ? 'bg-blue-600' : 'bg-white border-y border-l border-slate-100'}`}>
-                                      <div className="flex flex-col items-center justify-center">
-                                        <div className={`flex flex-col items-center justify-center w-10 h-10 rounded-xl border ${esReciente ? 'bg-white text-blue-600 border-white' : esHoy ? 'bg-blue-600 text-white border-blue-700' : 'bg-slate-50 text-slate-900 border-slate-200'}`}>
-                                          <span className="text-sm font-black leading-none">{dia}</span><span className="text-[7px] font-black mt-1 uppercase">{mes}</span>
-                                        </div>
-                                      </div>
-                                    </td>
-                                    <td className={`px-4 py-3 ${esReciente ? 'bg-blue-600' : 'bg-white border-y border-slate-100'}`}>
-                                      <p className={`text-[10px] font-black uppercase ${esReciente ? 'text-blue-100' : 'text-slate-400'}`}>{item.cliente}</p>
-                                      <p className={`text-xs font-black uppercase italic ${esReciente ? 'text-white' : 'text-slate-900'}`}>{item.envase}</p>
-                                    </td>
-                                    <td className={`px-4 py-3 text-center ${esReciente ? 'bg-blue-600' : 'bg-white border-y border-slate-100'}`}>
-                                      <span className={`text-lg font-black font-mono ${esReciente ? 'text-white' : 'text-blue-600'}`}>{item.cantidad}</span>
-                                    </td>
-                                    <td className={`px-4 py-3 text-right ${esReciente ? 'bg-blue-600' : 'bg-white border-y border-slate-100'}`}>
-                                      <p className={`text-md font-black font-mono ${esReciente ? 'text-white' : 'text-slate-900'}`}>S/ {Number(item.dinero).toFixed(2)}</p>
-                                      <span className={`text-[7px] font-black uppercase px-2 py-0.5 rounded ${esReciente ? 'bg-blue-400 text-white' : (item.pago === 'Yape' ? 'bg-purple-100 text-purple-600' : 'bg-emerald-100 text-emerald-600')}`}>{item.pago}</span>
-                                    </td>
-                                    <td className={`px-4 py-3 rounded-r-2xl text-center ${esReciente ? 'bg-blue-600' : 'bg-white border-y border-r border-slate-100'}`}>
-                                      <button onClick={() => toggleDevuelto(item.id, item.devuelto)} className={`text-[9px] font-black px-3 py-2 rounded-xl border-2 transition-all ${item.devuelto === 1 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
-                                        {item.devuelto === 1 ? 'RECIBIDO' : 'PENDIENTE'}
-                                      </button>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </div>
+                    <HistorialEnvases 
+                      statsEnvases={statsEnvases}
+                      envasesFiltrados={envasesFiltrados}
+                      nuevoIdEnvase={nuevoIdEnvase}
+                      formatFechaCorta={formatFechaCorta}
+                      toggleDevuelto={toggleDevuelto}
+                    />
                   )}
                 </>
               )}
@@ -1145,88 +1142,6 @@ export default function GamificacionPage() {
                             })}
                           </tbody>
                         </table>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* MODAL PROVEEDORES */}
-              {accionActiva === 'proveedores' && (
-                <>
-                  {vistaModal === 'form' && (
-                    <div className="bg-white p-6 sm:p-8 rounded-[2rem] shadow-xl border-b-[10px] border-indigo-600 animate-in fade-in zoom-in duration-300">
-                      <h3 className="text-xl font-black text-slate-900 uppercase text-center mb-6 italic">Generar Pedido</h3>
-                      <form className="space-y-4" onSubmit={manejarEnvioPedido}>
-                        
-                        {/* PESTAÑAS DE DÍAS DENTRO DEL FORM */}
-                        <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide">
-                          {diasSemana.map(dia => (
-                            <button key={dia} type="button" onClick={() => setDiaAbierto(diaAbierto === dia ? null : dia)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase shrink-0 transition-all ${diaAbierto === dia ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
-                              {dia}
-                            </button>
-                          ))}
-                        </div>
-                        {diaAbierto && (
-                          <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto bg-slate-50 p-2 rounded-xl border border-slate-200">
-                             {proveedoresDelDiaActivo.map(p => (
-                               <div key={p.id} onClick={() => setFormProveedor({...formProveedor, proveedor: p.nombre})} className={`cursor-pointer p-2 rounded-lg text-[10px] font-black uppercase border transition-all ${formProveedor.proveedor === p.nombre ? 'bg-indigo-100 border-indigo-500 text-indigo-800' : 'bg-white border-slate-200 text-slate-600'}`}>
-                                 {p.nombre}
-                               </div>
-                             ))}
-                             {proveedoresDelDiaActivo.length === 0 && <div className="col-span-2 text-center text-slate-400 text-xs py-4">NO HAY PROVEEDORES ASIGNADOS AL {diaAbierto.toUpperCase()}</div>}
-                          </div>
-                        )}
-
-                        <select required value={formProveedor.proveedor} onChange={(e) => setFormProveedor({ ...formProveedor, proveedor: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-sm font-black outline-none uppercase cursor-pointer">
-                          <option value="">{diaAbierto ? `PROVEEDORES DEL ${diaAbierto.toUpperCase()}` : "SELECCIONAR PROVEEDOR..."}</option>
-                          {opcionesSelectProveedores.map(nombre => <option key={nombre} value={nombre}>{nombre}</option>)}
-                        </select>
-                        <input required type="text" placeholder="PRODUCTO (Ej. PILSEN 630)" value={formProveedor.producto} onChange={(e) => setFormProveedor({ ...formProveedor, producto: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-sm font-black outline-none uppercase" />
-                        <input required type="number" placeholder="CANTIDAD (UNID.)" min="1" value={formProveedor.cantidad} onChange={(e) => setFormProveedor({ ...formProveedor, cantidad: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-4 rounded-2xl text-center font-black outline-none" />
-                        <button type="submit" disabled={loadingDB} className="w-full bg-indigo-600 text-white font-black py-5 rounded-2xl shadow-xl uppercase border-b-4 border-indigo-900 text-xs">ENVIAR PEDIDO</button>
-                      </form>
-                    </div>
-                  )}
-
-                  {vistaModal === 'tabla' && (
-                    <div className="bg-slate-900 rounded-[2rem] shadow-xl overflow-hidden min-h-[400px] text-white animate-in fade-in zoom-in duration-300">
-                      <div className="p-4 border-b border-white/10 flex justify-between items-center"><span className="font-black italic text-sm">MONITOR DE PEDIDOS</span></div>
-                      
-                      <div className="p-4 max-h-[450px] overflow-y-auto space-y-4">
-                        {Array.from(new Set(pedidosActivosFiltrados.map(pr => pr.proveedor))).map(provName => {
-                          const items = pedidosActivosFiltrados.filter(pr => pr.proveedor === provName);
-                          const recibidos = items.every(i => i.recibido);
-                          return (
-                            <div key={provName} className="bg-white/5 border border-white/10 rounded-2xl p-4">
-                              <div className="flex justify-between items-center border-b border-white/10 pb-2 mb-3">
-                                <h4 className="font-black text-sm text-indigo-300 uppercase">{provName}</h4>
-                                <div className="flex gap-2">
-                                  {!recibidos && <button onClick={() => marcarGrupoComoRecibido(provName, items.map(i=>i.id))} className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-2 py-1.5 rounded transition-colors">✓ Recibido</button>}
-                                  {recibidos && <button onClick={() => revertirGrupoProveedor(provName, items.map(i=>i.id))} className="bg-amber-500 hover:bg-amber-600 text-white text-[9px] font-black uppercase px-2 py-1.5 rounded transition-colors">↩ Deshacer</button>}
-                                  <button onClick={() => ocultarGrupoProveedor(items.map(i=>i.id))} className="bg-slate-700 hover:bg-slate-600 text-white text-[9px] font-black uppercase px-2 py-1.5 rounded transition-colors">✕ Ocultar</button>
-                                  <button onClick={() => eliminarGrupoProveedor(provName, items.map(i=>i.id))} className="bg-rose-600/30 text-rose-400 hover:text-white px-2 py-1.5 rounded transition-colors text-xs font-bold">🗑</button>
-                                </div>
-                              </div>
-                              <div className="space-y-1.5">
-                                {items.map(item => (
-                                  <div key={item.id} className={`flex justify-between items-center text-xs p-2.5 rounded-lg border ${item.recibido ? 'border-slate-500 bg-slate-800 text-slate-400' : 'border-white/10 bg-white/5'}`}>
-                                    <div className="flex flex-col">
-                                      <span className="font-bold uppercase truncate">{item.producto}</span>
-                                      <span className="font-black text-indigo-400 text-[10px]">{item.cantidad}</span>
-                                    </div>
-                                    <div className="flex gap-2 shrink-0">
-                                      {item.recibido && <button onClick={() => revertirPedidoIndividual(item.id)} className="text-[9px] text-blue-400 font-black uppercase hover:underline">↩ Revertir</button>}
-                                      <button onClick={() => editarPedidoIndividual(item)} className="text-slate-400 hover:text-indigo-400 text-[10px]">✏️</button>
-                                      <button onClick={() => eliminarPedidoIndividual(item.id)} className="text-slate-400 hover:text-rose-400 text-[10px] font-black">✕</button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {pedidosActivosFiltrados.length === 0 && <div className="text-center text-slate-500 text-xs py-10 uppercase font-bold">Sin pedidos activos</div>}
                       </div>
                     </div>
                   )}
