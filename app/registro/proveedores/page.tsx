@@ -29,20 +29,19 @@ function ProveedoresContent() {
   const [proveedorSel, setProveedorSel] = useState("");
   const [producto, setProducto] = useState("");
   const [cantidad, setCantidad] = useState("");
-  const [precio, setPrecio] = useState(""); // Nuevo estado para precio
+  const [precio, setPrecio] = useState(""); 
   const [cargando, setCargando] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [exito, setExito] = useState(false); 
-  const [verHistorial, setVerHistorial] = useState(false);
-  const [nuevoPedidoId, setNuevoPedidoId] = useState<number | null>(null); // Para el resaltado y auto-scroll
+  const [nuevoPedidoId, setNuevoPedidoId] = useState<number | null>(null);
   
-  const [tipoTransaccion, setTipoTransaccion] = useState("COMPRA");
+  const [tipoTransaction, setTipoTransaccion] = useState("COMPRA");
   const [tipoPresentacion, setTipoPresentacion] = useState("UNIDADES");
 
   const [diaAbierto, setDiaAbierto] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState(""); // 1. ESTADO DE BÚSQUEDA
   const diasSemana = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 
-  // Estados para el Modal de Edición
   const [pedidoAEditar, setPedidoAEditar] = useState<PedidoGuardadoDB | null>(null);
   const [editProducto, setEditProducto] = useState("");
   const [editCantidad, setEditCantidad] = useState("");
@@ -55,11 +54,8 @@ function ProveedoresContent() {
       .select("*")
       .order("creado_en", { ascending: false });
 
-    if (error) {
-      console.error("Error:", error);
-    } else {
-      setPedidosDB(data || []);
-    }
+    if (error) console.error("Error:", error);
+    else setPedidosDB(data || []);
   };
 
   useEffect(() => {
@@ -119,7 +115,6 @@ function ProveedoresContent() {
     doc.setTextColor(100);
     doc.text(`Generado el: ${fechaLegible}`, 14, 27);
 
-    // Añadida la columna de precio
     const tableColumn = ["Producto", "Cantidad", "Precio"];
     const tableRows = items.map(item => [
       item.producto.toUpperCase(),
@@ -136,7 +131,6 @@ function ProveedoresContent() {
       styles: { fontSize: 9, cellPadding: 5 },
     });
 
-    // Calcular y mostrar la suma total al final de la tabla
     const totalSuma = items.reduce((acc, item) => acc + Number(item.precio || 0), 0);
     const finalY = (doc as any).lastAutoTable.finalY + 10;
     
@@ -149,73 +143,62 @@ function ProveedoresContent() {
   };
 
   const manejarEnvioDirecto = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!producto.trim() || !cantidad || isNaN(Number(cantidad)) || !proveedorSel) {
-    alert("Completa los campos obligatorios correctamente");
-    return;
-  }
-  
-  setEnviando(true);
-  try {
-    const nombreFinal = tipoTransaccion === "BONO" ? `[BONO] ${producto.toUpperCase().trim()}` : producto.toUpperCase().trim();
-    const cantidadFinal = `${cantidad} ${tipoPresentacion}`;
-    const precioFinal = tipoTransaccion === "BONO" ? null : (precio ? parseFloat(precio) : null);
-
-    const { data, error } = await supabase
-      .from("pedidos")
-      .insert([{
-        proveedor: proveedorSel.toUpperCase(),
-        producto: nombreFinal,
-        cantidad: cantidadFinal,
-        precio: precioFinal,
-        creado_en: new Date().toISOString(),
-      }])
-      .select();
-
-    if (error) throw error;
+    e.preventDefault();
+    if (!producto.trim() || !cantidad || isNaN(Number(cantidad)) || !proveedorSel) {
+      alert("Completa los campos obligatorios correctamente");
+      return;
+    }
     
-    // 1. Guardamos el ID del nuevo pedido
-    const insertadoId = data[0].id;
-    setNuevoPedidoId(insertadoId);
+    setEnviando(true);
+    try {
+      const nombreFinal = tipoTransaction === "BONO" ? `[BONO] ${producto.toUpperCase().trim()}` : producto.toUpperCase().trim();
+      const cantidadFinal = `${cantidad} ${tipoPresentacion}`;
+      const precioFinal = tipoTransaction === "BONO" ? null : (precio ? parseFloat(precio) : null);
 
-    // 2. Refrescamos la lista de pedidos PRIMERO
-    await cargarPedidosDesdeBD();
-    
-    // 3. Resetear formulario
-    setProducto("");
-    setCantidad("");
-    setPrecio("");
-    setTipoTransaccion("COMPRA");
-    setTipoPresentacion("UNIDADES");
+      const { data, error } = await supabase
+        .from("pedidos")
+        .insert([{
+          proveedor: proveedorSel.toUpperCase(),
+          producto: nombreFinal,
+          cantidad: cantidadFinal,
+          precio: precioFinal,
+          creado_en: new Date().toISOString(),
+        }])
+        .select();
 
-    // 4. Feedback visual
-    setExito(true);
-    setTimeout(() => setExito(false), 2000);
+      if (error) throw error;
+      
+      const insertadoId = data[0].id;
+      setNuevoPedidoId(insertadoId);
 
-    // 5. Scroll inteligente con MÁS TIEMPO DE ESPERA
-    // Esperamos 400ms para asegurar que React terminó de pintar la lista con el nuevo item
-    setTimeout(() => {
-      const elemento = document.getElementById(`pedido-${insertadoId}`);
-      if (elemento) {
-        elemento.scrollIntoView({ behavior: "smooth", block: "center" });
-        
-        // Efecto opcional: un parpadeo extra si quieres
-        elemento.classList.add('ring-4', 'ring-emerald-400');
-        setTimeout(() => elemento.classList.remove('ring-4', 'ring-emerald-400'), 1500);
-      }
-    }, 400);
+      await cargarPedidosDesdeBD();
+      
+      setProducto("");
+      setCantidad("");
+      setPrecio("");
+      setTipoTransaccion("COMPRA");
+      setTipoPresentacion("UNIDADES");
+      setExito(true);
+      setTimeout(() => setExito(false), 2000);
 
-    // 6. Limpiar resaltado
-    setTimeout(() => setNuevoPedidoId(null), 3000);
+      setTimeout(() => {
+        const elemento = document.getElementById(`pedido-${insertadoId}`);
+        if (elemento) {
+          elemento.scrollIntoView({ behavior: "smooth", block: "center" });
+          elemento.classList.add('ring-4', 'ring-emerald-400');
+          setTimeout(() => elemento.classList.remove('ring-4', 'ring-emerald-400'), 1500);
+        }
+      }, 400);
 
-    document.getElementById("input-producto")?.focus();
-  } catch (err) {
-    console.error(err);
-    alert("Error al registrar el pedido.");
-  } finally {
-    setEnviando(false);
-  }
-};
+      setTimeout(() => setNuevoPedidoId(null), 3000);
+      document.getElementById("input-producto")?.focus();
+    } catch (err) {
+      console.error(err);
+      alert("Error al registrar el pedido.");
+    } finally {
+      setEnviando(false);
+    }
+  };
 
   const obtenerTextoEntrega = (diaEntregaStr: string) => {
     if (!diaEntregaStr) return 'N/A';
@@ -226,19 +209,15 @@ function ProveedoresContent() {
     const entregaIdx = dias.findIndex(d => normalizar(d) === diaNorm);
 
     if (entregaIdx === -1) return diaEntregaStr; 
-    if (hoyIdx === entregaIdx) return `¡Hoy `+ diaNorm + ` se entrega!`;
-    if ((hoyIdx + 1) % 7 === entregaIdx) return `Se entrega mañana `+ diaNorm;
-    if ((hoyIdx - 1 + 7) % 7 === entregaIdx) return "Ayer "+ diaNorm + " se entregó el pedido";
+    if (hoyIdx === entregaIdx) return `¡Hoy ${diaNorm} se entrega!`;
+    if ((hoyIdx + 1) % 7 === entregaIdx) return `Se entrega mañana ${diaNorm}`;
+    if ((hoyIdx - 1 + 7) % 7 === entregaIdx) return `Ayer ${diaNorm} se entregó el pedido`;
     return `Día de entrega: ${diaEntregaStr}`;
   };
 
-  // ---- FUNCIONES DEL MODAL DE EDICIÓN ----
   const abrirModalEdicion = (item: PedidoGuardadoDB) => {
     setPedidoAEditar(item);
-    // Parseamos el nombre (quitando el tag de bono si queremos, o dejándolo. Lo dejaremos para que lo vea)
     setEditProducto(item.producto);
-    
-    // Parsear Cantidad y Formato ("10 PAQUETES" -> "10" y "PAQUETES")
     const match = item.cantidad.match(/^(\d+)\s+(.+)$/);
     if (match) {
       setEditCantidad(match[1]);
@@ -247,7 +226,6 @@ function ProveedoresContent() {
       setEditCantidad(item.cantidad.replace(/\D/g, ""));
       setEditFormato("UNIDADES");
     }
-
     setEditPrecio(item.precio ? String(item.precio) : "");
   };
 
@@ -270,15 +248,13 @@ function ProveedoresContent() {
         .eq("id", pedidoAEditar.id);
 
       if (error) throw error;
-      
-      setPedidoAEditar(null); // Cerrar Modal
+      setPedidoAEditar(null);
       await cargarPedidosDesdeBD();
     } catch (err) {
       console.error(err);
       alert("No se pudo actualizar el registro.");
     }
   };
-  // ----------------------------------------
 
   const marcarGrupoComoRecibido = async (provName: string, ids: number[]) => {
     try {
@@ -322,14 +298,24 @@ function ProveedoresContent() {
     } catch (err) { console.error(err); }
   };
 
+  // 2. LÓGICA DE FILTRADO CON BÚSQUEDA INTEGRADA
   const proveedoresFiltradosSelect = diaAbierto 
     ? proveedores.filter(p => p.dia_pedido?.toLowerCase() === diaAbierto.toLowerCase())
     : proveedores;
 
-  const opcionesSelect = Array.from(new Set(proveedoresFiltradosSelect.map(p => p.nombre.toUpperCase()))).sort();
+  const opcionesSelect = Array.from(
+    new Set(
+      proveedoresFiltradosSelect
+        .filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+        .map(p => p.nombre.toUpperCase())
+    )
+  ).sort();
 
-
-  const proveedoresDelDiaActivo = proveedores.filter((p) => p.dia_pedido?.toLowerCase() === diaAbierto);
+  const proveedoresMostrados = proveedores.filter((p) => {
+    const coincideBusqueda = p.nombre.toLowerCase().includes(busqueda.toLowerCase());
+    const coincideDia = diaAbierto ? p.dia_pedido?.toLowerCase() === diaAbierto : true;
+    return coincideBusqueda && coincideDia;
+  });
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 p-2 animate-in fade-in duration-500 relative">
@@ -343,7 +329,7 @@ function ProveedoresContent() {
       </div>
 
       {/* TABS DE DÍAS */}
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
           {diasSemana.map((dia) => {
             const cantidadProv = proveedores.filter((p) => p.dia_pedido?.toLowerCase() === dia).length;
@@ -371,31 +357,52 @@ function ProveedoresContent() {
           })}
         </div>
 
-        {/* PROVEEDORES DEL DÍA */}
-        {diaAbierto && (
+        {/* 3 BARRA DE BÚSQUEDA (AHORA EN ANCHO COMPLETO) */}
+        <div className="w-full bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-2">
+          <span className="pl-2 text-slate-400 text-sm">🔍</span>
+          <input
+            type="text"
+            placeholder="Buscar proveedor por nombre..."
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            className="flex-1 pr-4 py-2 bg-transparent text-sm font-bold text-slate-900 placeholder-slate-400 outline-none"
+          />
+          {busqueda && (
+            <button 
+              onClick={() => setBusqueda("")}
+              className="px-2 py-1 text-[10px] font-black bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 uppercase shrink-0"
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
+
+        {/* PANEL DE PROVEEDORES ENCONTRADOS / DEL DÍA */}
+        {(diaAbierto || busqueda) && (
           <div className="p-5 bg-slate-50 border-2 border-indigo-600 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex items-center justify-between mb-4 border-b border-slate-200/60 pb-2">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse"></span>
                 <p className="text-xs font-black text-indigo-950 uppercase tracking-wider">
-                  Proveedores del <span className="underline italic text-indigo-600">{diaAbierto}</span>:
+                  {busqueda ? `Resultados para "${busqueda}"` : `Proveedores del lunes a sábado` }
+                  {diaAbierto && <> en <span className="underline italic text-indigo-600">{diaAbierto}</span></>}:
                 </p>
               </div>
               <button 
-                onClick={() => setDiaAbierto(null)}
+                onClick={() => { setDiaAbierto(null); setBusqueda(""); }}
                 className="text-[10px] font-black uppercase text-slate-400 hover:text-slate-700 bg-white px-2 py-1 rounded-md border"
               >
-                Cerrar Panel ✕
+                Limpiar Filtros ✕
               </button>
             </div>
 
-            {proveedoresDelDiaActivo.length === 0 ? (
+            {proveedoresMostrados.length === 0 ? (
               <p className="text-xs font-bold text-slate-400 uppercase py-4 text-center bg-white rounded-xl border border-dashed border-slate-200">
-                No hay proveedores programados para este día
+                No se encontraron proveedores con ese filtro
               </p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {proveedoresDelDiaActivo.map((p) => (
+                {proveedoresMostrados.map((p) => (
                   <div 
                     key={p.id} 
                     onClick={() => {
@@ -408,26 +415,24 @@ function ProveedoresContent() {
                         : 'bg-white border-slate-200 hover:border-slate-300'
                     }`}
                   >
-                   {/* CONTENEDOR FLEX PARA EL NOMBRE Y EL BOTÓN */}
-                  <div className="flex justify-between items-start border-b border-slate-100/50 pb-2">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2.5 h-2.5 rounded-full ${p.color} shrink-0`}></div>
-                      <h3 className="font-black text-slate-900 uppercase text-xs tracking-tight">{p.nombre}</h3>
-                    </div>
+                    <div className="flex justify-between items-start border-b border-slate-100/50 pb-2">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2.5 h-2.5 rounded-full ${p.color} shrink-0`}></div>
+                        <h3 className="font-black text-slate-900 uppercase text-xs tracking-tight">{p.nombre}</h3>
+                      </div>
 
-                    {/* BOTÓN CATÁLOGO ALINEADO A LA DERECHA */}
-                    {p.catalogo_link && (
-                      <a 
-                        href={p.catalogo_link} 
-                        target="_blank" 
-                        rel="noreferrer" 
-                        onClick={(e) => e.stopPropagation()} // Evita que se abra el proveedor al clickear el link
-                        className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded text-[9px] font-black uppercase hover:bg-indigo-600 hover:text-white transition-colors border border-indigo-200"
-                      >
-                        Catálogo
-                      </a>
-                    )}
-                  </div>
+                      {p.catalogo_link && (
+                        <a 
+                          href={p.catalogo_link} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          onClick={(e) => e.stopPropagation()} 
+                          className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded text-[9px] font-black uppercase hover:bg-indigo-600 hover:text-white transition-colors border border-indigo-200"
+                        >
+                          Catálogo
+                        </a>
+                      )}
+                    </div>
                     
                     <div className="space-y-1.5 text-left bg-white/60 p-2 rounded-lg border border-slate-100/50 text-xs">
                       <div className="flex justify-between items-center">
@@ -492,15 +497,39 @@ function ProveedoresContent() {
               />
             </div>
 
-            <div className={`grid ${tipoTransaccion === "BONO" ? "grid-cols-1" : "grid-cols-2"} gap-2 transition-all duration-300`}>
-  
-              {/* TIPO DE INGRESO: Crece automáticamente si el precio desaparece */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">Formato</label>
+                <select
+                  value={tipoPresentacion}
+                  onChange={(e) => setTipoPresentacion(e.target.value)}
+                  className="w-full px-4 py-3.5 bg-slate-100 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-bold text-slate-900 outline-none cursor-pointer"
+                >
+                  <option value="UNIDADES">UNIDADES</option>
+                  <option value="PAQUETES">PAQUETES</option>
+                  <option value="CAJETILLAS">CAJETILLAS</option>
+                  <option value="CAJA">CAJA</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">Cantidad</label>
+                <input
+                  type="number"
+                  value={cantidad}
+                  onChange={(e) => setCantidad(e.target.value)}
+                  min="1"
+                  className="w-full px-4 py-3.5 bg-slate-100 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-bold text-slate-900 outline-none"
+                />
+              </div>
+            </div>
+
+            <div className={`grid ${tipoTransaction === "BONO" ? "grid-cols-1" : "grid-cols-2"} gap-2 transition-all duration-300`}>
               <div className="col-span-1">
                 <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">
                   Tipo de Ingreso
                 </label>
                 <select
-                  value={tipoTransaccion}
+                  value={tipoTransaction}
                   onChange={(e) => setTipoTransaccion(e.target.value)}
                   className="w-full px-4 py-3.5 bg-slate-100 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-bold text-slate-900 outline-none cursor-pointer"
                 >
@@ -509,8 +538,7 @@ function ProveedoresContent() {
                 </select>
               </div>
 
-              {/* PRECIO: Solo aparece si NO es BONO, y al desaparecer, el grid cambia a 1 sola columna */}
-              {tipoTransaccion !== "BONO" && (
+              {tipoTransaction !== "BONO" && (
                 <div className="col-span-1 animate-in fade-in zoom-in duration-300">
                   <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">
                     Precio
@@ -530,31 +558,6 @@ function ProveedoresContent() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">Cantidad</label>
-                <input
-                  type="number"
-                  value={cantidad}
-                  onChange={(e) => setCantidad(e.target.value)}
-                  min="1"
-                  className="w-full px-4 py-3.5 bg-slate-100 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-bold text-slate-900 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">Formato</label>
-                <select
-                  value={tipoPresentacion}
-                  onChange={(e) => setTipoPresentacion(e.target.value)}
-                  className="w-full px-4 py-3.5 bg-slate-100 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-bold text-slate-900 outline-none cursor-pointer"
-                >
-                  <option value="UNIDADES">UNIDADES</option>
-                  <option value="PAQUETES">PAQUETES</option>
-                  <option value="CAJETILLAS">CAJETILLAS</option>
-                </select>
-              </div>
-            </div>
-
             <button 
               type="submit" 
               disabled={enviando || exito}
@@ -570,114 +573,112 @@ function ProveedoresContent() {
         </form>
 
         {/* MONITOR ACTIVO */}
-      <div className="lg:col-span-8 bg-slate-900 p-5 rounded-[2rem] shadow-xl text-white flex flex-col">
-        <div className="flex items-center gap-2 mb-5 border-b border-white/10 pb-4">
-          <span className="text-xl animate-pulse">📊</span>
-          <h3 className="text-lg font-black uppercase italic tracking-tighter">Monitoreo</h3>
-        </div>
+        <div className="lg:col-span-8 bg-slate-900 p-5 rounded-[2rem] shadow-xl text-white flex flex-col">
+          <div className="flex items-center gap-2 mb-5 border-b border-white/10 pb-4">
+            <span className="text-xl animate-pulse">📊</span>
+            <h3 className="text-lg font-black uppercase italic tracking-tighter">Monitoreo</h3>
+          </div>
 
-        <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2">
-          {pedidosActivosFiltrados.length === 0 ? (
-            <div className="py-20 text-center flex flex-col items-center opacity-25">
-              <span className="text-4xl mb-2">📡</span>
-              <p className="text-[11px] uppercase tracking-widest font-black">La base de datos está limpia</p>
-              <p className="text-[10px] mt-1 italic">Agrega pedidos para visualizarlos aquí</p>
-            </div>
-          ) : (
-            Object.entries(
-              pedidosActivosFiltrados.reduce((acc, p) => {
-                acc[p.proveedor] = [...(acc[p.proveedor] || []), p];
-                return acc;
-              }, {} as Record<string, PedidoGuardadoDB[]>)
-            ).map(([provName, items]) => {
-              const provBD = proveedores.find(p => p.nombre.toUpperCase() === provName.toUpperCase());
-              const colorHex = provBD?.color || "bg-slate-500";
-              const linkCat = provBD?.catalogo_link;
-              const totalPedidoProv = items.reduce((sum, item) => sum + (item.precio || 0), 0);
-              
-              return (
-                <div key={provName} className="bg-slate-800/50 p-4 rounded-xl border border-slate-600 hover:border-slate-400 transition-colors">
-                  {/* ENCABEZADO CON EVENTO DE CLIC */}
-                  <div 
-                    onClick={() => {
-                      setProveedorSel(provName);
-                      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 pb-3 border-b border-slate-700/50 cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-3 h-3 rounded-full ${colorHex}`}></div>
-                      <div>
-                        <h4 className="font-black text-sm uppercase tracking-wider group-hover:text-indigo-400 transition-colors">{provName}</h4>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase italic mt-0.5">
-                          {obtenerTextoEntrega(provBD?.dia_entrega || "")}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {/* Detenemos propagación en los botones para que no disparen el clic del div padre */}
-                    <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
-                      {linkCat && (
-                        <a title="VER CATÁLOGO" href={linkCat} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-300 font-black text-[9px] uppercase tracking-wider hover:bg-indigo-500 hover:text-white transition-colors border border-indigo-500/30">
-                          Catálogo
-                        </a>
-                      )}
-                      <button title="EXPORTAR PDF" onClick={() => exportarPDFIndividual(provName, items)} className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-black text-[10px] uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-colors border border-emerald-500/30">
-                        📄 PDF
-                      </button>
-                      <button title="RECIBIDO" onClick={() => marcarGrupoComoRecibido(provName, items.map(i => i.id))} className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-300 font-black text-[10px] uppercase tracking-wider hover:bg-blue-500 hover:text-white transition-colors border border-blue-500/30">
-                        ✅
-                      </button>
-                      <button title="ELIMINAR" onClick={() => eliminarGrupoProveedorDB(provName, items.map(i => i.id))} className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-300 font-black text-[10px] uppercase tracking-wider hover:bg-red-500 hover:text-white transition-colors border border-red-500/30">
-                        🗑️
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    {items.map(item => {
-                      const esBono = item.producto.includes("[BONO]");
-                      const fueRecibido = item.recibido;
-                      const esNuevo = item.id === nuevoPedidoId;
-
-                      return (
-                        <div key={item.id}
-                        id={`pedido-${item.id}`} // IMPORTANTE PARA EL AUTO SCROLL
-                        className={`flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded-lg border border-slate-700 group transition-all duration-300 ${fueRecibido ? 'bg-slate-900/80 border-slate-800 opacity-60' : esNuevo ? 'bg-emerald-500/20 border-emerald-400 ring-2 ring-emerald-500 scale-[1.01]' : 'bg-slate-900/40 hover:bg-slate-800'}`}>
-                          <div className="flex items-center gap-3">
-                            {fueRecibido && <span className="text-[10px]">✅</span>}
-                            {!fueRecibido && !esBono && <span className="text-[10px]">🛒</span>}
-                            {!fueRecibido && esBono && <span className="text-[10px]">🎁</span>}
-                            <span className={`font-black text-xs uppercase ${fueRecibido ? 'line-through text-slate-500' : esBono ? 'text-emerald-400' : 'text-slate-200'}`}>
-                              {item.cantidad} - {item.producto} {item.precio && !esBono ? `| S/ ${item.precio}` : ''}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 mt-2 sm:mt-0 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                            {!fueRecibido ? (
-                              <>
-                                <button onClick={() => abrirModalEdicion(item)} className="px-2 py-1 bg-slate-700 text-slate-300 rounded text-[9px] font-black uppercase hover:bg-slate-600 transition-colors">✏️ Editar</button>
-                                <button onClick={() => eliminarPedidoDB(item.id)} className="px-2 py-1 bg-red-900/50 text-red-300 rounded text-[9px] font-black uppercase hover:bg-red-800 transition-colors">🗑️ Borrar</button>
-                              </>
-                            ) : (
-                              <button onClick={() => revertirPedidoIndividual(item.id)} className="px-2 py-1 bg-slate-700 text-slate-300 rounded text-[9px] font-black uppercase hover:bg-slate-600 transition-colors">🔄 Deshacer Recibido</button>
-                            )}
-                          </div>
+          <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2">
+            {pedidosActivosFiltrados.length === 0 ? (
+              <div className="py-20 text-center flex flex-col items-center opacity-25">
+                <span className="text-4xl mb-2">📡</span>
+                <p className="text-[11px] uppercase tracking-widest font-black">La base de datos está limpia</p>
+                <p className="text-[10px] mt-1 italic">Agrega pedidos para visualizarlos aquí</p>
+              </div>
+            ) : (
+              Object.entries(
+                pedidosActivosFiltrados.reduce((acc, p) => {
+                  acc[p.proveedor] = [...(acc[p.proveedor] || []), p];
+                  return acc;
+                }, {} as Record<string, PedidoGuardadoDB[]>)
+              ).map(([provName, items]) => {
+                const provBD = proveedores.find(p => p.nombre.toUpperCase() === provName.toUpperCase());
+                const colorHex = provBD?.color || "bg-slate-500";
+                const linkCat = provBD?.catalogo_link;
+                const totalPedidoProv = items.reduce((sum, item) => sum + (item.precio || 0), 0);
+                
+                return (
+                  <div key={provName} className="bg-slate-800/50 p-4 rounded-xl border border-slate-600 hover:border-slate-400 transition-colors">
+                    <div 
+                      onClick={() => {
+                        setProveedorSel(provName);
+                        formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 pb-3 border-b border-slate-700/50 cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded-full ${colorHex}`}></div>
+                        <div>
+                          <h4 className="font-black text-sm uppercase tracking-wider group-hover:text-indigo-400 transition-colors">{provName}</h4>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase italic mt-0.5">
+                            {obtenerTextoEntrega(provBD?.dia_entrega || "")}
+                          </p>
                         </div>
-                      );
-                    })}
-                    {totalPedidoProv > 0 && (
-                      <div className="text-right px-2 py-1">
-                        <span className="text-[11px] text-slate-400 font-bold uppercase">Suma Estimada: </span>
-                        <span className="text-[13px] text-white font-black">S/ {totalPedidoProv.toFixed(2)}</span>
                       </div>
-                    )}
+                      
+                      <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
+                        {linkCat && (
+                          <a title="VER CATÁLOGO" href={linkCat} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-300 font-black text-[9px] uppercase tracking-wider hover:bg-indigo-500 hover:text-white transition-colors border border-indigo-500/30">
+                            Catálogo
+                          </a>
+                        )}
+                        <button title="EXPORTAR PDF" onClick={() => exportarPDFIndividual(provName, items)} className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-black text-[10px] uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-colors border border-emerald-500/30">
+                          📄 PDF
+                        </button>
+                        <button title="RECIBIDO" onClick={() => marcarGrupoComoRecibido(provName, items.map(i => i.id))} className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-300 font-black text-[10px] uppercase tracking-wider hover:bg-blue-500 hover:text-white transition-colors border border-blue-500/30">
+                          ✅
+                        </button>
+                        <button title="ELIMINAR" onClick={() => eliminarGrupoProveedorDB(provName, items.map(i => i.id))} className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-300 font-black text-[10px] uppercase tracking-wider hover:bg-red-500 hover:text-white transition-colors border border-red-500/30">
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {items.map(item => {
+                        const esBono = item.producto.includes("[BONO]");
+                        const fueRecibido = item.recibido;
+                        const esNuevo = item.id === nuevoPedidoId;
+
+                        return (
+                          <div key={item.id}
+                            id={`pedido-${item.id}`}
+                            className={`flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded-lg border border-slate-700 group transition-all duration-300 ${fueRecibido ? 'bg-slate-900/80 border-slate-800 opacity-60' : esNuevo ? 'bg-emerald-500/20 border-emerald-400 ring-2 ring-emerald-500 scale-[1.01]' : 'bg-slate-900/40 hover:bg-slate-800'}`}>
+                            <div className="flex items-center gap-3">
+                              {fueRecibido && <span className="text-[10px]">✅</span>}
+                              {!fueRecibido && !esBono && <span className="text-[10px]">🛒</span>}
+                              {!fueRecibido && esBono && <span className="text-[10px]">🎁</span>}
+                              <span className={`font-black text-xs uppercase ${fueRecibido ? 'line-through text-slate-500' : esBono ? 'text-emerald-400' : 'text-slate-200'}`}>
+                                {item.cantidad} - {item.producto} {item.precio && !esBono ? `| S/ ${item.precio}` : ''}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 mt-2 sm:mt-0 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                              {!fueRecibido ? (
+                                <>
+                                  <button onClick={() => abrirModalEdicion(item)} className="px-2 py-1 bg-slate-700 text-slate-300 rounded text-[9px] font-black uppercase hover:bg-slate-600 transition-colors">✏️ Editar</button>
+                                  <button onClick={() => eliminarPedidoDB(item.id)} className="px-2 py-1 bg-red-900/50 text-red-300 rounded text-[9px] font-black uppercase hover:bg-red-800 transition-colors">🗑️ Borrar</button>
+                                </>
+                              ) : (
+                                <button onClick={() => revertirPedidoIndividual(item.id)} className="px-2 py-1 bg-slate-700 text-slate-300 rounded text-[9px] font-black uppercase hover:bg-slate-600 transition-colors">🔄 Deshacer</button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {totalPedidoProv > 0 && (
+                        <div className="text-right px-2 py-1">
+                          <span className="text-[11px] text-slate-400 font-bold uppercase">Suma Estimada: </span>
+                          <span className="text-[13px] text-white font-black">S/ {totalPedidoProv.toFixed(2)}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
+          </div>
         </div>
-      </div>
 
       </div>
 
@@ -725,6 +726,8 @@ function ProveedoresContent() {
                   >
                     <option value="UNIDADES">UNIDADES</option>
                     <option value="PAQUETES">PAQUETES</option>
+                    <option value="CAJETILLAS">CAJETILLAS</option>
+                    <option value="CAJA">CAJA</option>
                   </select>
                 </div>
               </div>

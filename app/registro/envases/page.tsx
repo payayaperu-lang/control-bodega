@@ -247,7 +247,7 @@ export default function EnvasesRegistroPage() {
                   className="text-[10px] font-black uppercase tracking-wider bg-transparent text-slate-600 outline-none cursor-pointer appearance-none text-right"
                 >
                   <option value="Catherine">{horaActual < 16 ? "Catherine" : "Catherine"}</option>
-                  <option value="María">María</option>
+                  <option value="María">Axel</option>
                   <option value="Axel">Axel</option>
                 </select>
                 {/* Ícono miniatura como indicador sutil */}
