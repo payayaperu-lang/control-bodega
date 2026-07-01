@@ -7,23 +7,32 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 interface ProveedorDB {
-  id: number; nombre: string; color: string; dia_pedido: string; dia_entrega: string; catalogo_link?: string;
+  id: number;
+  nombre: string; 
+  color: string; 
+  dia_pedido: string; 
+  dia_entrega: string; 
+  catalogo_link?: string;
+  orden?: number;
 }
 
 interface PedidoGuardadoDB {
-  id: number; proveedor: string; producto: string; cantidad: string; precio?: number; creado_en: string; recibido?: boolean; oculto?: boolean;
-}
-
-interface RankingItem {
-  producto: string; proveedor: string; totalPedidos: number;
+  id: number; 
+  proveedor: string;
+  producto: string;
+  cantidad: string; 
+  precio?: number; 
+  creado_en: string; 
+  recibido?: boolean; 
+  oculto?: boolean;
+  orden?: number;
 }
 
 function ProveedoresContent() {
   const searchParams = useSearchParams();
   const proveedorQuery = searchParams.get("proveedor");
-
-  const formRef = useRef<HTMLFormElement>(null); 
-
+  const formRef = useRef<HTMLFormElement>(null);
+  
   const [proveedores, setProveedores] = useState<ProveedorDB[]>([]);
   const [pedidosDB, setPedidosDB] = useState<PedidoGuardadoDB[]>([]);
   const [proveedorSel, setProveedorSel] = useState("");
@@ -37,52 +46,77 @@ function ProveedoresContent() {
   
   const [tipoTransaction, setTipoTransaccion] = useState("COMPRA");
   const [tipoPresentacion, setTipoPresentacion] = useState("UNIDADES");
-
   const [diaAbierto, setDiaAbierto] = useState<string | null>(null);
-  const [busqueda, setBusqueda] = useState(""); // 1. ESTADO DE BÚSQUEDA
-  const diasSemana = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
-
+  const [busqueda, setBusqueda] = useState("");
   const [pedidoAEditar, setPedidoAEditar] = useState<PedidoGuardadoDB | null>(null);
+  
+  // ESTADO PARA PROVEEDORES EXPANDIDOS (vacío por defecto = todos ocultos)
+  const [expandedProvs, setExpandedProvs] = useState<Set<string>>(new Set());
+
   const [editProducto, setEditProducto] = useState("");
   const [editCantidad, setEditCantidad] = useState("");
   const [editFormato, setEditFormato] = useState("UNIDADES");
   const [editPrecio, setEditPrecio] = useState("");
+  
+  const diasSemana = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+  const hoyDia = new Date().toLocaleDateString('es-ES', { weekday: 'long' }).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  const dragProvItem = useRef<string | null>(null);
+  const dragProvOverItem = useRef<string | null>(null);
+  const dragRowItem = useRef<number | null>(null);
+  const dragRowOverItem = useRef<number | null>(null);
 
   const cargarPedidosDesdeBD = async () => {
     const { data, error } = await supabase
       .from("pedidos")
       .select("*")
+      .order("orden", { ascending: true })
       .order("creado_en", { ascending: false });
+    if (!error) setPedidosDB(data || []);
+  };
 
-    if (error) console.error("Error:", error);
-    else setPedidosDB(data || []);
+  const cargarProveedoresDesdeBD = async () => {
+    const { data, error } = await supabase
+      .from("proveedores")
+      .select("*")
+      .order("orden", { ascending: true })
+      .order("nombre", { ascending: true });
+    if (!error && data) setProveedores(data);
+    return data;
   };
 
   useEffect(() => {
     const inicializarDatos = async () => {
-      const { data: provsData, error: provsError } = await supabase
-        .from("proveedores")
-        .select("*")
-        .order("nombre", { ascending: true });
+      const provsData = await cargarProveedoresDesdeBD();
+      const proveedorGuardado = localStorage.getItem("proveedor_actual_payaya");
 
-      if (provsError) {
-        console.error("Error cargando proveedores:", provsError);
-      } else if (provsData) {
-        setProveedores(provsData);
-        const proveedorGuardado = localStorage.getItem("proveedor_actual_payaya");
-
+      if (provsData) {
         if (proveedorQuery) {
           const existe = provsData.find(p => p.nombre.toLowerCase() === proveedorQuery.toLowerCase());
           if (existe) setProveedorSel(existe.nombre);
         } else if (proveedorGuardado) {
           setProveedorSel(proveedorGuardado);
         }
-        setDiaAbierto(null);
       }
+      setDiaAbierto(null);
       await cargarPedidosDesdeBD();
       setCargando(false);
     };
+
     inicializarDatos();
+
+    const channel = supabase.channel('realtime-bd-cambios')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
+        cargarPedidosDesdeBD();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'proveedores' }, () => {
+        cargarProveedoresDesdeBD();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [proveedorQuery]);
 
   useEffect(() => {
@@ -102,6 +136,19 @@ function ProveedoresContent() {
     return true;
   });
 
+  const proveedoresConPedidos = new Set(
+    pedidosActivosFiltrados.filter(p => !p.recibido).map(p => p.proveedor.toUpperCase())
+  );
+
+  const toggleCollapse = (provName: string) => {
+    setExpandedProvs(prev => {
+      const next = new Set(prev);
+      if (next.has(provName)) next.delete(provName);
+      else next.add(provName);
+      return next;
+    });
+  };
+
   const exportarPDFIndividual = (provName: string, items: PedidoGuardadoDB[]) => {
     const doc = new jsPDF();
     doc.setFontSize(18);
@@ -115,8 +162,10 @@ function ProveedoresContent() {
     doc.setTextColor(100);
     doc.text(`Generado el: ${fechaLegible}`, 14, 27);
 
-    const tableColumn = ["Producto", "Cantidad", "Precio"];
-    const tableRows = items.map(item => [
+    // NUEVO: Columna de número de orden agregada
+    const tableColumn = ["#", "Producto", "Cantidad", "Precio"];
+    const tableRows = items.map((item, index) => [
+      index + 1,
       item.producto.toUpperCase(),
       item.cantidad,
       item.precio ? `S/ ${Number(item.precio).toFixed(2)}` : "-"
@@ -133,7 +182,7 @@ function ProveedoresContent() {
 
     const totalSuma = items.reduce((acc, item) => acc + Number(item.precio || 0), 0);
     const finalY = (doc as any).lastAutoTable.finalY + 10;
-    
+
     doc.setFontSize(12);
     doc.setTextColor(30, 41, 59);
     doc.setFont("helvetica", "bold");
@@ -163,11 +212,12 @@ function ProveedoresContent() {
           cantidad: cantidadFinal,
           precio: precioFinal,
           creado_en: new Date().toISOString(),
+          orden: 999 
         }])
         .select();
 
       if (error) throw error;
-      
+
       const insertadoId = data[0].id;
       setNuevoPedidoId(insertadoId);
 
@@ -246,7 +296,7 @@ function ProveedoresContent() {
           precio: editPrecio ? parseFloat(editPrecio) : null
         })
         .eq("id", pedidoAEditar.id);
-
+      
       if (error) throw error;
       setPedidoAEditar(null);
       await cargarPedidosDesdeBD();
@@ -256,11 +306,15 @@ function ProveedoresContent() {
     }
   };
 
-  const marcarGrupoComoRecibido = async (provName: string, ids: number[]) => {
+  // NUEVO: Función toggle para marcar/desmarcar todos los recibidos
+  const toggleGrupoRecibido = async (provName: string, items: PedidoGuardadoDB[]) => {
+    const todosRecibidos = items.every(i => i.recibido);
+    const nuevoEstado = !todosRecibidos; 
+
     try {
       await Promise.all(
-        ids.map(async (id) => {
-          const { error } = await supabase.from("pedidos").update({ recibido: true }).eq("id", id);
+        items.map(async (item) => {
+          const { error } = await supabase.from("pedidos").update({ recibido: nuevoEstado }).eq("id", item.id);
           if (error) throw error;
         })
       );
@@ -278,14 +332,6 @@ function ProveedoresContent() {
     } catch (err) { console.error(err); }
   };
 
-  const revertirPedidoIndividual = async (id: number) => {
-    try {
-      const { error } = await supabase.from("pedidos").update({ recibido: false }).eq("id", id);
-      if (error) throw error;
-      await cargarPedidosDesdeBD();
-    } catch (err) { console.error("Error al revertir:", err); }
-  };
-
   const eliminarGrupoProveedorDB = async (provName: string, ids: number[]) => {
     const confirmar = window.confirm(`⚠️ ¿Estás seguro de eliminar TODO el bloque de pedidos de "${provName.toUpperCase()}" (${ids.length} productos)?`);
     if (!confirmar) return;
@@ -298,7 +344,59 @@ function ProveedoresContent() {
     } catch (err) { console.error(err); }
   };
 
-  // 2. LÓGICA DE FILTRADO CON BÚSQUEDA INTEGRADA
+  const handleSortProviders = async () => {
+    if (!dragProvItem.current || !dragProvOverItem.current || dragProvItem.current === dragProvOverItem.current) return;
+    const ordenActual = Array.from(new Set(pedidosActivosFiltrados.map(p => p.proveedor.toUpperCase())));
+    const itemA = dragProvItem.current;
+    const itemB = dragProvOverItem.current;
+
+    const indexA = ordenActual.indexOf(itemA);
+    const indexB = ordenActual.indexOf(itemB);
+
+    if (indexA !== -1 && indexB !== -1) {
+      ordenActual.splice(indexA, 1);
+      ordenActual.splice(indexB, 0, itemA);
+
+      try {
+        await Promise.all(ordenActual.map(async (prov, index) => {
+          await supabase.from("proveedores").update({ orden: index }).eq("nombre", prov);
+        }));
+        await cargarProveedoresDesdeBD(); 
+      } catch (e) { console.error(e); }
+    }
+    dragProvItem.current = null;
+    dragProvOverItem.current = null;
+  };
+
+  const handleSortRows = async (provName: string) => {
+    if (!dragRowItem.current || !dragRowOverItem.current || dragRowItem.current === dragRowOverItem.current) return;
+    let itemsProv = pedidosActivosFiltrados.filter(p => p.proveedor.toUpperCase() === provName.toUpperCase());
+    
+    const indexA = itemsProv.findIndex(p => p.id === dragRowItem.current);
+    const indexB = itemsProv.findIndex(p => p.id === dragRowOverItem.current);
+
+    if (indexA !== -1 && indexB !== -1) {
+      const itemMovido = itemsProv.splice(indexA, 1)[0];
+      itemsProv.splice(indexB, 0, itemMovido);
+
+      const nuevosPedidos = [...pedidosDB];
+      itemsProv.forEach((item, index) => {
+        const i = nuevosPedidos.findIndex(p => p.id === item.id);
+        if (i > -1) nuevosPedidos[i].orden = index;
+      });
+      setPedidosDB(nuevosPedidos);
+
+      try {
+        await Promise.all(itemsProv.map(async (item, index) => {
+          await supabase.from("pedidos").update({ orden: index }).eq("id", item.id);
+        }));
+        await cargarPedidosDesdeBD(); 
+      } catch (e) { console.error(e); }
+    }
+    dragRowItem.current = null;
+    dragRowOverItem.current = null;
+  };
+
   const proveedoresFiltradosSelect = diaAbierto 
     ? proveedores.filter(p => p.dia_pedido?.toLowerCase() === diaAbierto.toLowerCase())
     : proveedores;
@@ -334,6 +432,7 @@ function ProveedoresContent() {
           {diasSemana.map((dia) => {
             const cantidadProv = proveedores.filter((p) => p.dia_pedido?.toLowerCase() === dia).length;
             const esDiaActivo = diaAbierto === dia;
+            const esHoy = hoyDia === dia.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
             return (
               <button
@@ -343,10 +442,14 @@ function ProveedoresContent() {
                 className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all text-center group ${
                   esDiaActivo
                     ? "border-indigo-600 bg-indigo-50/60 ring-4 ring-indigo-100 text-indigo-950 font-black scale-[1.02]"
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300 font-bold"
+                    : esHoy 
+                      ? "border-emerald-500 border-2 shadow-sm bg-white text-slate-700 font-black"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300 font-bold"
                 }`}
               >
-                <span className="text-[11px] uppercase tracking-wider italic">{dia}</span>
+                <span className={`text-[11px] uppercase tracking-wider italic ${esHoy && !esDiaActivo ? 'text-emerald-600' : ''}`}>
+                  {dia}
+                </span>
                 <span className={`text-[9px] mt-1 px-2 py-0.5 rounded-md font-black uppercase ${
                   esDiaActivo ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500"
                 }`}>
@@ -357,7 +460,6 @@ function ProveedoresContent() {
           })}
         </div>
 
-        {/* 3 BARRA DE BÚSQUEDA (AHORA EN ANCHO COMPLETO) */}
         <div className="w-full bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-2">
           <span className="pl-2 text-slate-400 text-sm">🔍</span>
           <input
@@ -377,7 +479,6 @@ function ProveedoresContent() {
           )}
         </div>
 
-        {/* PANEL DE PROVEEDORES ENCONTRADOS / DEL DÍA */}
         {(diaAbierto || busqueda) && (
           <div className="p-5 bg-slate-50 border-2 border-indigo-600 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex items-center justify-between mb-4 border-b border-slate-200/60 pb-2">
@@ -402,7 +503,10 @@ function ProveedoresContent() {
               </p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {proveedoresMostrados.map((p) => (
+                {proveedoresMostrados.map((p) => {
+                  const tienePedidoActivo = proveedoresConPedidos.has(p.nombre.toUpperCase());
+                  
+                  return (
                   <div 
                     key={p.id} 
                     onClick={() => {
@@ -412,13 +516,17 @@ function ProveedoresContent() {
                     className={`p-4 rounded-xl border transition-all cursor-pointer shadow-xs flex flex-col justify-between gap-3 ${
                       proveedorSel === p.nombre 
                         ? 'bg-indigo-100 border-indigo-600 ring-4 ring-indigo-50 scale-[1.01]'
-                        : 'bg-white border-slate-200 hover:border-slate-300'
+                        : tienePedidoActivo 
+                          ? 'bg-emerald-50 border-emerald-400 hover:border-emerald-500' 
+                          : 'bg-white border-slate-200 hover:border-slate-300'
                     }`}
                   >
                     <div className="flex justify-between items-start border-b border-slate-100/50 pb-2">
                       <div className="flex items-center gap-2">
                         <div className={`w-2.5 h-2.5 rounded-full ${p.color} shrink-0`}></div>
-                        <h3 className="font-black text-slate-900 uppercase text-xs tracking-tight">{p.nombre}</h3>
+                        <h3 className={`font-black uppercase text-xs tracking-tight ${tienePedidoActivo ? 'text-emerald-800' : 'text-slate-900'}`}>
+                          {p.nombre}
+                        </h3>
                       </div>
 
                       {p.catalogo_link && (
@@ -434,7 +542,7 @@ function ProveedoresContent() {
                       )}
                     </div>
                     
-                    <div className="space-y-1.5 text-left bg-white/60 p-2 rounded-lg border border-slate-100/50 text-xs">
+                    <div className={`space-y-1.5 text-left p-2 rounded-lg border text-xs ${tienePedidoActivo ? 'bg-emerald-100/50 border-emerald-200' : 'bg-white/60 border-slate-100/50'}`}>
                       <div className="flex justify-between items-center">
                         <span className="font-bold text-slate-500 uppercase text-[10px]">Pedido:</span>
                         <span className="font-black text-slate-800 uppercase italic bg-white px-2 py-0.5 rounded border border-slate-200">{p.dia_pedido}</span>
@@ -445,7 +553,7 @@ function ProveedoresContent() {
                       </div>
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
             )}
           </div>
@@ -471,9 +579,7 @@ function ProveedoresContent() {
           
           <div className="space-y-4">
             <div>
-              <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">
-                Proveedor Seleccionado
-              </label>
+              <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">Proveedor Seleccionado</label>
               <select
                 value={proveedorSel}
                 onChange={(e) => setProveedorSel(e.target.value)}
@@ -525,9 +631,7 @@ function ProveedoresContent() {
 
             <div className={`grid ${tipoTransaction === "BONO" ? "grid-cols-1" : "grid-cols-2"} gap-2 transition-all duration-300`}>
               <div className="col-span-1">
-                <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">
-                  Tipo de Ingreso
-                </label>
+                <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">Tipo de Ingreso</label>
                 <select
                   value={tipoTransaction}
                   onChange={(e) => setTipoTransaccion(e.target.value)}
@@ -540,9 +644,7 @@ function ProveedoresContent() {
 
               {tipoTransaction !== "BONO" && (
                 <div className="col-span-1 animate-in fade-in zoom-in duration-300">
-                  <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">
-                    Precio
-                  </label>
+                  <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">Precio</label>
                   <div className="relative">
                     <span className="absolute left-3 top-3.5 font-black text-slate-400 text-sm">S/</span>
                     <input
@@ -579,7 +681,7 @@ function ProveedoresContent() {
             <h3 className="text-lg font-black uppercase italic tracking-tighter">Monitoreo</h3>
           </div>
 
-          <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2">
+          <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
             {pedidosActivosFiltrados.length === 0 ? (
               <div className="py-20 text-center flex flex-col items-center opacity-25">
                 <span className="text-4xl mb-2">📡</span>
@@ -587,32 +689,59 @@ function ProveedoresContent() {
                 <p className="text-[10px] mt-1 italic">Agrega pedidos para visualizarlos aquí</p>
               </div>
             ) : (
-              Object.entries(
-                pedidosActivosFiltrados.reduce((acc, p) => {
-                  acc[p.proveedor] = [...(acc[p.proveedor] || []), p];
-                  return acc;
-                }, {} as Record<string, PedidoGuardadoDB[]>)
-              ).map(([provName, items]) => {
+              Array.from(new Set(pedidosActivosFiltrados.map(p => p.proveedor.toUpperCase())))
+              .sort((a, b) => {
+                const provA = proveedores.find(p => p.nombre.toUpperCase() === a);
+                const provB = proveedores.find(p => p.nombre.toUpperCase() === b);
+                return (provA?.orden || 0) - (provB?.orden || 0);
+              })
+              .map((provName) => {
+                const items = pedidosActivosFiltrados.filter(p => p.proveedor.toUpperCase() === provName);
                 const provBD = proveedores.find(p => p.nombre.toUpperCase() === provName.toUpperCase());
                 const colorHex = provBD?.color || "bg-slate-500";
                 const linkCat = provBD?.catalogo_link;
                 const totalPedidoProv = items.reduce((sum, item) => sum + (item.precio || 0), 0);
-                
+
+                // NUEVO: Determinamos si este proveedor está expandido
+                const isExpanded = expandedProvs.has(provName);
+
                 return (
-                  <div key={provName} className="bg-slate-800/50 p-4 rounded-xl border border-slate-600 hover:border-slate-400 transition-colors">
+                  <div 
+                    key={provName} 
+                    draggable
+                    onDragStart={(e) => dragProvItem.current = provName}
+                    onDragEnter={(e) => dragProvOverItem.current = provName}
+                    onDragEnd={handleSortProviders}
+                    onDragOver={(e) => e.preventDefault()}
+                    className="bg-slate-800/50 p-4 rounded-xl border border-slate-600 hover:border-slate-400 transition-colors cursor-move"
+                  >
                     <div 
                       onClick={() => {
                         setProveedorSel(provName);
+                        toggleCollapse(provName); // El clic en el header ahora lo abre/cierra
                         formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
                       }}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 pb-3 border-b border-slate-700/50 cursor-pointer group"
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isExpanded ? 'mb-3 pb-3 border-b border-slate-700/50' : ''} group cursor-pointer`}
                     >
                       <div className="flex items-center gap-3">
+                        <div className="text-slate-500 cursor-grab active:cursor-grabbing" onClick={(e) => e.stopPropagation()}>☰</div>
+                        
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleCollapse(provName);
+                          }} 
+                          className="text-slate-400 hover:text-white bg-slate-700/50 rounded p-1 w-6 h-6 flex items-center justify-center transition-colors border border-slate-600"
+                          title={!isExpanded ? "Expandir" : "Contraer"}
+                        >
+                          {!isExpanded ? "▶" : "▼"}
+                        </button>
+
                         <div className={`w-3 h-3 rounded-full ${colorHex}`}></div>
                         <div>
                           <h4 className="font-black text-sm uppercase tracking-wider group-hover:text-indigo-400 transition-colors">{provName}</h4>
                           <p className="text-[10px] text-slate-400 font-bold uppercase italic mt-0.5">
-                            {obtenerTextoEntrega(provBD?.dia_entrega || "")}
+                            {obtenerTextoEntrega(provBD?.dia_entrega || "")} {!isExpanded && `(${items.length} prod.)`}
                           </p>
                         </div>
                       </div>
@@ -626,8 +755,8 @@ function ProveedoresContent() {
                         <button title="EXPORTAR PDF" onClick={() => exportarPDFIndividual(provName, items)} className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-black text-[10px] uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-colors border border-emerald-500/30">
                           📄 PDF
                         </button>
-                        <button title="RECIBIDO" onClick={() => marcarGrupoComoRecibido(provName, items.map(i => i.id))} className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-300 font-black text-[10px] uppercase tracking-wider hover:bg-blue-500 hover:text-white transition-colors border border-blue-500/30">
-                          ✅
+                        <button title={items.every(i => i.recibido) ? "DESMARCAR TODO" : "MARCAR TODO"} onClick={() => toggleGrupoRecibido(provName, items)} className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-300 font-black text-[10px] uppercase tracking-wider hover:bg-blue-500 hover:text-white transition-colors border border-blue-500/30">
+                          {items.every(i => i.recibido) ? '↩️' : '✅'}
                         </button>
                         <button title="ELIMINAR" onClick={() => eliminarGrupoProveedorDB(provName, items.map(i => i.id))} className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-300 font-black text-[10px] uppercase tracking-wider hover:bg-red-500 hover:text-white transition-colors border border-red-500/30">
                           🗑️
@@ -635,51 +764,72 @@ function ProveedoresContent() {
                       </div>
                     </div>
 
-                    <div className="space-y-1.5">
-                      {items.map(item => {
-                        const esBono = item.producto.includes("[BONO]");
-                        const fueRecibido = item.recibido;
-                        const esNuevo = item.id === nuevoPedidoId;
+                    {isExpanded && (
+                      <div className="space-y-1.5 overflow-x-auto mt-2 animate-in fade-in duration-200">
+                        <table className="w-full text-left border-collapse">
+                          <tbody>
+                            {items.map(item => {
+                              const esBono = item.producto.includes("[BONO]");
+                              const fueRecibido = item.recibido;
+                              const esNuevo = item.id === nuevoPedidoId;
+                              return (
+                                <tr 
+                                  key={item.id}
+                                  id={`pedido-${item.id}`}
+                                  draggable
+                                  onDragStart={(e) => { e.stopPropagation(); dragRowItem.current = item.id; }}
+                                  onDragEnter={(e) => { e.stopPropagation(); dragRowOverItem.current = item.id; }}
+                                  onDragEnd={(e) => { e.stopPropagation(); handleSortRows(provName); }}
+                                  onDragOver={(e) => e.preventDefault()}
+                                  className={`group transition-all duration-300 cursor-move border-b border-slate-700/50 last:border-0 ${
+                                    fueRecibido 
+                                      ? 'bg-emerald-900/20 border-emerald-800' 
+                                      : esNuevo 
+                                        ? 'bg-emerald-500/20 border-emerald-400' 
+                                        : 'bg-slate-900/40 hover:bg-slate-800'
+                                  }`}
+                                >
+                                  <td className="p-2 w-8 text-slate-600">☰</td>
+                                  
+                                  <td className="p-2">
+                                    <div className="flex items-center gap-2">
+                                      {!fueRecibido && !esBono && <span className="text-[10px]">🛒</span>}
+                                      {!fueRecibido && esBono && <span className="text-[10px]">🎁</span>}
+                                      <span className={`font-black text-xs uppercase ${fueRecibido ? 'text-emerald-400' : esBono ? 'text-purple-400' : 'text-slate-200'}`}>
+                                        {item.cantidad} - {item.producto}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="p-2 text-right">
+                                    <span className={`font-black text-xs uppercase ${fueRecibido ? 'text-emerald-400' : 'text-slate-200'}`}>
+                                      {item.precio && !esBono ? `S/ ${item.precio}` : ''}
+                                    </span>
+                                  </td>
+                                  <td className="p-2 w-24 text-right opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => abrirModalEdicion(item)} className="px-2 py-1 mr-1 bg-slate-700 text-slate-300 rounded text-[9px] font-black uppercase hover:bg-slate-600">✏️</button>
+                                    <button onClick={() => eliminarPedidoDB(item.id)} className="px-2 py-1 bg-red-900/50 text-red-300 rounded text-[9px] font-black uppercase hover:bg-red-800">🗑️</button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
 
-                        return (
-                          <div key={item.id}
-                            id={`pedido-${item.id}`}
-                            className={`flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded-lg border border-slate-700 group transition-all duration-300 ${fueRecibido ? 'bg-slate-900/80 border-slate-800 opacity-60' : esNuevo ? 'bg-emerald-500/20 border-emerald-400 ring-2 ring-emerald-500 scale-[1.01]' : 'bg-slate-900/40 hover:bg-slate-800'}`}>
-                            <div className="flex items-center gap-3">
-                              {fueRecibido && <span className="text-[10px]">✅</span>}
-                              {!fueRecibido && !esBono && <span className="text-[10px]">🛒</span>}
-                              {!fueRecibido && esBono && <span className="text-[10px]">🎁</span>}
-                              <span className={`font-black text-xs uppercase ${fueRecibido ? 'line-through text-slate-500' : esBono ? 'text-emerald-400' : 'text-slate-200'}`}>
-                                {item.cantidad} - {item.producto} {item.precio && !esBono ? `| S/ ${item.precio}` : ''}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1 mt-2 sm:mt-0 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                              {!fueRecibido ? (
-                                <>
-                                  <button onClick={() => abrirModalEdicion(item)} className="px-2 py-1 bg-slate-700 text-slate-300 rounded text-[9px] font-black uppercase hover:bg-slate-600 transition-colors">✏️ Editar</button>
-                                  <button onClick={() => eliminarPedidoDB(item.id)} className="px-2 py-1 bg-red-900/50 text-red-300 rounded text-[9px] font-black uppercase hover:bg-red-800 transition-colors">🗑️ Borrar</button>
-                                </>
-                              ) : (
-                                <button onClick={() => revertirPedidoIndividual(item.id)} className="px-2 py-1 bg-slate-700 text-slate-300 rounded text-[9px] font-black uppercase hover:bg-slate-600 transition-colors">🔄 Deshacer</button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {totalPedidoProv > 0 && (
-                        <div className="text-right px-2 py-1">
-                          <span className="text-[11px] text-slate-400 font-bold uppercase">Suma Estimada: </span>
-                          <span className="text-[13px] text-white font-black">S/ {totalPedidoProv.toFixed(2)}</span>
-                        </div>
-                      )}
-                    </div>
+                    {/* La suma queda fuera del div condicional 'isExpanded' para que siempre esté visible */}
+                    {totalPedidoProv > 0 && (
+                      <div className={`text-right px-2 pt-2 pb-1 mt-2 ${isExpanded ? 'border-t border-slate-700' : ''}`}>
+                        <span className="text-[11px] text-slate-400 font-bold uppercase">Suma Estimada: </span>
+                        <span className="text-[13px] text-white font-black">S/ {totalPedidoProv.toFixed(2)}</span>
+                      </div>
+                    )}
                   </div>
                 );
               })
             )}
           </div>
         </div>
-
       </div>
 
       {/* --- MODAL DE EDICIÓN FLOTANTE --- */}
@@ -692,7 +842,6 @@ function ProveedoresContent() {
             >
               ✕
             </button>
-            
             <h3 className="text-xl font-black text-slate-900 uppercase italic mb-5">✏️ Editar Pedido</h3>
             
             <form onSubmit={guardarEdicionPedido} className="space-y-4">
