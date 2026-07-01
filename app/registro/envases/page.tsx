@@ -6,9 +6,13 @@ import { supabase } from "../../lib/supabase";
 export default function EnvasesRegistroPage() {
   const [registros, setRegistros] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [confirmando, setConfirmando] = useState(false);
   const [notificacion, setNotificacion] = useState<string | null>(null);
   const [nuevoId, setNuevoId] = useState<number | null>(null);
+  
+  // Nuevos estados para edición y búsqueda
+  const [editando, setEditando] = useState<any | null>(null);
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroPago, setFiltroPago] = useState<string | null>(null);
   
   // --- LÓGICA DE TRABAJADORES Y TURNOS ---
   const [horaActual, setHoraActual] = useState(new Date().getHours());
@@ -17,37 +21,33 @@ export default function EnvasesRegistroPage() {
   const determinarTrabajadorTurno = () => {
     const hoy = new Date();
     const hora = hoy.getHours();
-    const dia = hoy.getDay(); // 0 = Domingo, 6 = Sábado
+    const dia = hoy.getDay(); 
 
     if (hora < 16) {
-      return "Catherine"; // Mañanas (Lunes a Domingo)
+      return "Catherine"; 
     } else {
       if (dia === 0 || dia === 6) {
-        return "Axel"; // Tardes de fin de semana
+        return "Axel"; 
       } else {
-        return "María"; // Tardes de Lunes a Viernes
+        return "María"; 
       }
     }
   };
 
-  // --- LÓGICA DE FECHAS ---
-  const dates = useMemo(() => {
-    const hoy = new Date();
-    const diaSemana = hoy.getDay();
-    const difLunes = hoy.getDate() - (diaSemana === 0 ? 6 : diaSemana - 1);
-    const lunes = new Date(new Date().setDate(difLunes)).toISOString().split('T')[0];
-    const domingo = new Date(new Date(lunes).setDate(new Date(lunes).getDate() + 6)).toISOString().split('T')[0];
-    const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split('T')[0];
-    const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().split('T')[0];
-    return { lunes, domingo, inicioMes, finMes };
-  }, []);
+// --- LÓGICA DE FECHAS (8 días atrás y 1 día adelante) ---
+  const [fechaDesde, setFechaDesde] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 8); // 8 días atrás
+    return d.toISOString().split('T')[0];
+  });
+  
+  const [fechaHasta, setFechaHasta] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1); // 1 día adelante
+    return d.toISOString().split('T')[0];
+  });
 
-  const [fechaDesde, setFechaDesde] = useState(dates.lunes); 
-  const [fechaHasta, setFechaHasta] = useState(dates.domingo);
   const [filtroEstado, setFiltroEstado] = useState("pendientes");
-
-  const esSemanaActual = fechaDesde === dates.lunes && fechaHasta === dates.domingo;
-  const esMesActual = fechaDesde === dates.inicioMes && fechaHasta === dates.finMes;
 
   const [nuevo, setNuevo] = useState({ 
     cliente: "", 
@@ -82,13 +82,24 @@ export default function EnvasesRegistroPage() {
 
   const registrosFiltrados = useMemo(() => {
     let filtrados = [...registros];
+    
     if (filtroEstado === "pendientes") filtrados = filtrados.filter(r => r.devuelto === 0);
     if (filtroEstado === "devueltos") filtrados = filtrados.filter(r => r.devuelto === 1);
+    
+    if (filtroPago) filtrados = filtrados.filter(r => r.pago === filtroPago);
+
+    if (busqueda.trim() !== "") {
+      const q = busqueda.toLowerCase();
+      filtrados = filtrados.filter(r => 
+        r.cliente.toLowerCase().includes(q) || 
+        r.envase.toLowerCase().includes(q)
+      );
+    }
+
     return filtrados;
-  }, [registros, filtroEstado]);
+  }, [registros, filtroEstado, filtroPago, busqueda]);
 
   // --- EFECTOS ---
-  // Inicialización de turno en el cliente y monitoreo del paso del tiempo
   useEffect(() => {
     const inicial = determinarTrabajadorTurno();
     setTurnoActual(inicial);
@@ -97,12 +108,11 @@ export default function EnvasesRegistroPage() {
     const interval = setInterval(() => {
       setHoraActual(new Date().getHours());
       const nuevoTurno = determinarTrabajadorTurno();
-      // Si el turno natural cambia (ej. dan las 4pm), fuerza la actualización sobreescribiendo cambios manuales
       if (nuevoTurno !== turnoActual) {
         setTurnoActual(nuevoTurno);
         setNuevo(prev => ({ ...prev, trabajador: nuevoTurno }));
       }
-    }, 60000); // Revisa cada minuto
+    }, 60000);
 
     return () => clearInterval(interval);
   }, [turnoActual]);
@@ -120,14 +130,6 @@ export default function EnvasesRegistroPage() {
     setLoading(false);
   }
 
-  const togglePeriodo = () => {
-    if (esSemanaActual) {
-      setFechaDesde(dates.inicioMes); setFechaHasta(dates.finMes);
-    } else {
-      setFechaDesde(dates.lunes); setFechaHasta(dates.domingo);
-    }
-  };
-
   async function toggleDevuelto(id: number, estadoActual: number) {
     const nuevoEstado = estadoActual === 1 ? 0 : 1;
     const { error } = await supabase.from("envases").update({ devuelto: nuevoEstado }).eq("id", id);
@@ -138,7 +140,8 @@ export default function EnvasesRegistroPage() {
     }
   }
 
-  async function guardarRegistro() {
+  async function guardarRegistro(e?: React.FormEvent) {
+    e?.preventDefault();
     if (!formularioValido) return;
 
     const { data, error } = await supabase.from("envases").insert([{
@@ -147,19 +150,48 @@ export default function EnvasesRegistroPage() {
       cantidad: Number(nuevo.cantidad),
       dinero: Number(nuevo.dinero),
       pago: nuevo.pago,
-      trabajador: nuevo.trabajador, // Se inserta el trabajador seleccionado
+      trabajador: nuevo.trabajador,
       fecha: new Date().toISOString(),
       devuelto: 0 
     }]).select();
 
     if (!error && data) {
       setNotificacion(`Registro guardado exitosamente`);
-      // Al reiniciar el form, se mantiene el trabajador manual que estaba usando
       setNuevo({ cliente: "", envase: "", cantidad: "1", dinero: "2", pago: "Efectivo", trabajador: nuevo.trabajador });
-      setConfirmando(false);
       setNuevoId(data[0].id);
       fetchEnvases();
       setTimeout(() => setNuevoId(null), 8000);
+    }
+  }
+
+  async function actualizarRegistro() {
+    if (!editando) return;
+    const { error } = await supabase.from("envases").update({
+      cliente: editando.cliente.toUpperCase(),
+      envase: editando.envase,
+      cantidad: Number(editando.cantidad),
+      dinero: Number(editando.dinero),
+      pago: editando.pago
+    }).eq("id", editando.id);
+
+    if (!error) {
+      setNotificacion("Registro actualizado");
+      setEditando(null);
+      fetchEnvases();
+      setTimeout(() => setNotificacion(null), 3000);
+    }
+  }
+
+  async function eliminarRegistro() {
+    if (!editando) return;
+    if (!confirm(`¿Estás seguro de eliminar el registro de ${editando.cliente}?`)) return;
+    
+    const { error } = await supabase.from("envases").delete().eq("id", editando.id);
+    if (!error) {
+      setNotificacion("Registro eliminado");
+      setEditando(null);
+      fetchEnvases();
+      setTimeout(() => setNotificacion(null), 3000);
     }
   }
 
@@ -184,21 +216,56 @@ export default function EnvasesRegistroPage() {
         </div>
       )}
 
-      {confirmando && (
+      {/* POP UP DE EDICIÓN */}
+      {editando && (
         <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-md" onClick={() => setConfirmando(false)}></div>
-          <div className="bg-white rounded-[3rem] p-10 shadow-2xl border-t-[15px] border-blue-600 text-center relative z-10 animate-in zoom-in duration-300 max-w-sm w-full">
-            <h2 className="text-4xl font-black text-slate-900 uppercase italic mb-6 leading-none">REVISAR SALIDA</h2>
-            <div className="bg-slate-50 p-6 rounded-[2rem] border-2 border-slate-100 mb-8">
-              <p className="text-xl font-black text-slate-900 uppercase">{nuevo.cliente}</p>
-              <p className="text-2xl font-black text-blue-600 uppercase">{nuevo.cantidad} {nuevo.envase}</p>
-              <p className="text-2xl font-black text-emerald-600 font-mono">S/ {Number(nuevo.dinero).toFixed(2)}</p>
-              <p className="text-[10px] font-black text-slate-400 mt-4 uppercase">Atendido por: {nuevo.trabajador}</p>
+          <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-md" onClick={() => setEditando(null)}></div>
+          <div className="bg-white rounded-[3rem] p-10 shadow-2xl border-t-[15px] border-slate-900 text-center relative z-10 animate-in zoom-in duration-300 max-w-sm w-full">
+            <h2 className="text-4xl font-black text-slate-900 uppercase italic mb-6 leading-none">EDITAR REGISTRO</h2>
+            <div className="space-y-4 text-left mb-6">
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase ml-1">Cliente</label>
+                <input type="text" value={editando.cliente} onChange={(e) => setEditando({ ...editando, cliente: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-3 rounded-xl text-sm font-bold uppercase outline-none focus:border-slate-400" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase ml-1">Envase</label>
+                <select value={editando.envase} onChange={(e) => setEditando({ ...editando, envase: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-3 rounded-xl text-sm font-bold uppercase outline-none focus:border-slate-400">
+                    <option value="Pirañita 192ml">Pirañita 192ml</option>
+                    <option value="Envase 296ml">Envase 296ml</option>
+                    <option value="Inca Kola 1L">🟡 Inca Kola 1L</option>
+                    <option value="Coca Cola 1L">🔴 Coca Cola 1L</option>
+                    <option value="Inca K. 1.5L">🟡 Inca K. 1.5L</option>
+                    <option value="Coca C. 1.5L">🔴 Coca C. 1.5L</option>
+                    <option value="Fanta 1.5L">🟨 Fanta 1.5L</option>
+                    <option value="Inca Gordita">🟡 Inca Gordita</option>
+                    <option value="Inca K. 2.5L">🟡 Inca K. 2.5L</option>
+                    <option value="Coca C. 2.5L">🔴 Coca C. 2.5L</option>
+                    <option value="Cerveza 630ML">🍺 Cerveza 630ML</option>
+                    <option value="Cerveza 1L">🍺 Cerveza 1L</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black text-slate-500 uppercase ml-1">Cantidad</label>
+                  <input type="number" value={editando.cantidad} onChange={(e) => setEditando({ ...editando, cantidad: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-3 rounded-xl text-center font-bold outline-none focus:border-slate-400" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-500 uppercase ml-1">Garantía (S/)</label>
+                  <input type="number" step="0.5" value={editando.dinero} onChange={(e) => setEditando({ ...editando, dinero: e.target.value })} className="w-full border-2 border-slate-100 bg-slate-50 p-3 rounded-xl text-center font-bold outline-none focus:border-slate-400 font-mono" />
+                </div>
+              </div>
+              <div className="flex bg-slate-100 p-1 rounded-xl">
+                <button type="button" onClick={() => setEditando({...editando, pago: 'Efectivo'})} className={`flex-1 py-2 rounded-lg text-[10px] font-black transition-all ${editando.pago === 'Efectivo' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}>EFECTIVO</button>
+                <button type="button" onClick={() => setEditando({...editando, pago: 'Yape'})} className={`flex-1 py-2 rounded-lg text-[10px] font-black transition-all ${editando.pago === 'Yape' ? 'bg-white text-purple-600 shadow-sm' : 'text-slate-400'}`}>YAPE</button>
+              </div>
             </div>
-            <div className="flex gap-4">
-              <button onClick={() => setConfirmando(false)} className="flex-1 bg-slate-100 text-slate-500 font-black py-5 rounded-2xl uppercase text-[11px]">CORREGIR</button>
-              <button onClick={guardarRegistro} className="flex-1 bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl uppercase text-[11px]">CONFIRMAR</button>
+            <div className="flex gap-4 mb-4">
+              <button onClick={() => setEditando(null)} className="flex-1 bg-slate-100 text-slate-500 font-black py-4 rounded-2xl uppercase text-[11px]">CANCELAR</button>
+              <button onClick={actualizarRegistro} className="flex-1 bg-slate-900 text-white font-black py-4 rounded-2xl shadow-xl uppercase text-[11px]">ACTUALIZAR</button>
             </div>
+            <button onClick={eliminarRegistro} className="text-red-500 text-[10px] font-black uppercase underline decoration-2 underline-offset-4">
+              ❌ ELIMINAR ESTE REGISTRO
+            </button>
           </div>
         </div>
       )}
@@ -213,7 +280,7 @@ export default function EnvasesRegistroPage() {
           </div>
           
           <div className="flex flex-wrap justify-center items-center gap-3 bg-white p-3 rounded-3xl border border-slate-200 shadow-sm w-full md:w-auto">
-            <div className="flex gap-4 px-2 border-r border-slate-200 text-left">
+            <div className="flex gap-4 px-2 text-left">
               <div className="flex flex-col">
                 <span className="text-[8px] font-black text-blue-600 uppercase tracking-tighter mb-1">DESDE:</span>
                 <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className="text-[11px] font-black bg-transparent outline-none text-slate-900 w-24" />
@@ -223,14 +290,6 @@ export default function EnvasesRegistroPage() {
                 <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className="text-[11px] font-black bg-transparent outline-none text-slate-900 w-24" />
               </div>
             </div>
-
-            <div className="flex items-center gap-2 px-2 cursor-pointer select-none" onClick={togglePeriodo}>
-              <span className={`text-[8px] font-black uppercase ${esSemanaActual ? 'text-emerald-600' : 'text-slate-300'}`}>SEM</span>
-              <div className={`w-10 h-5 rounded-full relative transition-colors ${esMesActual ? 'bg-blue-600' : 'bg-emerald-500'}`}>
-                <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${esMesActual ? 'translate-x-5' : 'translate-x-0'}`} />
-              </div>
-              <span className={`text-[8px] font-black uppercase ${esMesActual ? 'text-blue-600' : 'text-slate-300'}`}>MES</span>
-            </div>
           </div>
         </div>
 
@@ -238,26 +297,20 @@ export default function EnvasesRegistroPage() {
           {/* FORMULARIO */}
           <div className="lg:col-span-4 self-start sticky top-4">
             <div className="bg-white p-8 rounded-[3rem] shadow-2xl border-b-[12px] border-blue-600 relative">
-              
-              {/* SELECTOR DE TRABAJADOR DISCRETO */}
               <div className="absolute top-6 right-8 flex items-center gap-1 hover:opacity-100 transition-opacity focus-within:opacity-100">
                 <select 
                   value={nuevo.trabajador}
                   onChange={(e) => setNuevo({...nuevo, trabajador: e.target.value})}
                   className="text-[10px] font-black uppercase tracking-wider bg-transparent text-slate-600 outline-none cursor-pointer appearance-none text-right"
                 >
-                  <option value="Catherine">{horaActual < 16 ? "Catherine" : "Catherine"}</option>
-                  <option value="María">Axel</option>
+                  <option value="Catherine">Catherine</option>
+                  <option value="Axel">Axel</option>
                   <option value="Axel">Axel</option>
                 </select>
-                {/* Ícono miniatura como indicador sutil */}
                 <svg className="w-3 h-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
               </div>
 
-              <form 
-                className="space-y-5 mt-2" 
-                onSubmit={(e) => { e.preventDefault(); if(formularioValido) setConfirmando(true); }}
-              >
+              <form className="space-y-5 mt-2" onSubmit={guardarRegistro}>
                 <div className="text-left">
                   <label className="text-[11px] font-black text-blue-600 uppercase mb-2 block tracking-widest ml-1">Cliente *</label>
                   <input 
@@ -330,20 +383,39 @@ export default function EnvasesRegistroPage() {
               <div className="text-left w-full sm:w-auto">
                 <h3 className="text-lg font-black text-white uppercase italic tracking-tighter">HISTORIAL RECIENTE</h3>
               </div>
-              <div className="flex gap-8">
-                <div className="flex flex-col text-right">
+              
+              {/* FILTROS DE PAGO (EFECTIVO Y YAPE CON ONCLICK) */}
+              <div className="flex gap-4">
+                <div 
+                  onClick={() => setFiltroPago(prev => prev === 'Efectivo' ? null : 'Efectivo')}
+                  className={`flex flex-col text-right cursor-pointer px-4 py-2 rounded-2xl transition-all ${filtroPago === 'Efectivo' ? 'bg-emerald-900/50 ring-2 ring-emerald-500' : 'hover:bg-slate-800'}`}
+                >
                   <span className="text-[8px] font-black text-emerald-400 uppercase leading-none mb-1">EFECTIVO.</span>
                   <span className="text-xl font-black text-white font-mono tracking-tighter">S/ {stats.cashPendiente.toFixed(2)}</span>
                 </div>
-                <div className="flex flex-col text-right">
+                <div 
+                  onClick={() => setFiltroPago(prev => prev === 'Yape' ? null : 'Yape')}
+                  className={`flex flex-col text-right cursor-pointer px-4 py-2 rounded-2xl transition-all ${filtroPago === 'Yape' ? 'bg-purple-900/50 ring-2 ring-purple-500' : 'hover:bg-slate-800'}`}
+                >
                   <span className="text-[8px] font-black text-purple-400 uppercase leading-none mb-1">YAPE</span>
                   <span className="text-xl font-black text-white font-mono tracking-tighter">S/ {stats.yapePendiente.toFixed(2)}</span>
                 </div>
               </div>
+            </div>
+            
+            {/* BARRA DE BÚSQUEDA Y FILTRO DE ESTADO */}
+            <div className="bg-slate-50 border-b border-slate-100 p-4 flex flex-col sm:flex-row gap-4 items-center">
+              <input 
+                type="text" 
+                placeholder="Buscar cliente o envase..." 
+                value={busqueda} 
+                onChange={(e) => setBusqueda(e.target.value)} 
+                className="flex-1 w-full bg-white border-2 border-slate-200 p-3 rounded-xl text-xs font-bold text-slate-900 outline-none focus:border-blue-400 uppercase"
+              />
               <select 
                 value={filtroEstado} 
                 onChange={(e) => setFiltroEstado(e.target.value)} 
-                className="bg-blue-600 text-white text-[10px] font-black px-4 py-2.5 rounded-xl uppercase outline-none cursor-pointer"
+                className="bg-blue-600 text-white text-[10px] font-black px-6 py-3 rounded-xl uppercase outline-none cursor-pointer w-full sm:w-auto"
               >
                 <option value="pendientes">PENDIENTES</option>
                 <option value="devueltos">RECIBIDOS</option>
@@ -382,7 +454,6 @@ export default function EnvasesRegistroPage() {
                           <td className={`px-4 py-4 ${esReciente ? 'bg-blue-600' : 'bg-slate-50'}`}>
                             <p className={`text-[10px] font-black uppercase ${esReciente ? 'text-blue-100' : 'text-slate-400'}`}>{item.cliente}</p>
                             <p className={`text-sm font-black uppercase italic ${esReciente ? 'text-white' : 'text-slate-900'}`}>{item.envase}</p>
-                            {/* Mostrar quién atendió opcionalmente (puedes borrar esta línea si no quieres que sea visible aquí) */}
                             {item.trabajador && <p className={`text-[9px] uppercase mt-1 font-bold ${esReciente ? 'text-blue-200' : 'text-slate-400'}`}>Atendido: {item.trabajador}</p>}
                           </td>
                           <td className={`px-4 py-4 text-center ${esReciente ? 'bg-blue-600' : 'bg-slate-50'}`}>
@@ -393,9 +464,12 @@ export default function EnvasesRegistroPage() {
                             <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded ${esReciente ? 'bg-blue-400 text-white' : (item.pago === 'Yape' ? 'bg-purple-100 text-purple-600' : 'bg-emerald-100 text-emerald-600')}`}>{item.pago}</span>
                           </td>
                           <td className={`px-4 py-4 rounded-r-3xl text-center ${esReciente ? 'bg-blue-600' : 'bg-slate-50'}`}>
-                            <div className="flex gap-2 justify-center">
+                            <div className="flex gap-2 justify-center items-center">
                               <button onClick={() => toggleDevuelto(item.id, item.devuelto)} className={`text-[10px] font-black px-4 py-2.5 rounded-xl border-2 transition-all ${item.devuelto === 1 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
                                 {item.devuelto === 1 ? 'RECIBIDO' : 'PENDIENTE'}
+                              </button>
+                              <button onClick={() => setEditando({ ...item })} className="bg-slate-200 text-slate-500 px-3 py-2.5 rounded-xl text-[10px] font-black uppercase hover:bg-slate-300">
+                                ✎
                               </button>
                             </div>
                           </td>
@@ -433,13 +507,16 @@ export default function EnvasesRegistroPage() {
                         </div>
                       </div>
 
-                      <div className="text-right">
+                      <div className="text-right flex flex-col items-end gap-1">
                         <p className="text-sm font-black font-mono">S/ {Number(item.dinero).toFixed(2)}</p>
                         <button 
                           onClick={() => toggleDevuelto(item.id, item.devuelto)} 
                           className={`mt-1 text-[8px] font-black px-3 py-1 rounded-lg ${item.devuelto === 1 ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}
                         >
                           {item.devuelto === 1 ? 'RECIBIDO' : 'PENDIENTE'}
+                        </button>
+                        <button onClick={() => setEditando({ ...item })} className="text-[8px] font-black text-slate-400 underline mt-1">
+                          EDITAR
                         </button>
                       </div>
                     </div>
