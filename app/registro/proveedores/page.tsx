@@ -32,7 +32,6 @@ function ProveedoresContent() {
   const searchParams = useSearchParams();
   const proveedorQuery = searchParams.get("proveedor");
   const formRef = useRef<HTMLFormElement>(null);
-  
   const [proveedores, setProveedores] = useState<ProveedorDB[]>([]);
   const [pedidosDB, setPedidosDB] = useState<PedidoGuardadoDB[]>([]);
   const [proveedorSel, setProveedorSel] = useState("");
@@ -50,17 +49,14 @@ function ProveedoresContent() {
   const [busqueda, setBusqueda] = useState("");
   const [pedidoAEditar, setPedidoAEditar] = useState<PedidoGuardadoDB | null>(null);
   
-  // ESTADO PARA PROVEEDORES EXPANDIDOS (vacío por defecto = todos ocultos)
   const [expandedProvs, setExpandedProvs] = useState<Set<string>>(new Set());
-
   const [editProducto, setEditProducto] = useState("");
   const [editCantidad, setEditCantidad] = useState("");
   const [editFormato, setEditFormato] = useState("UNIDADES");
   const [editPrecio, setEditPrecio] = useState("");
-  
   const diasSemana = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
   const hoyDia = new Date().toLocaleDateString('es-ES', { weekday: 'long' }).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
+  
   const dragProvItem = useRef<string | null>(null);
   const dragProvOverItem = useRef<string | null>(null);
   const dragRowItem = useRef<number | null>(null);
@@ -161,8 +157,6 @@ function ProveedoresContent() {
     doc.setFontSize(10);
     doc.setTextColor(100);
     doc.text(`Generado el: ${fechaLegible}`, 14, 27);
-
-    // NUEVO: Columna de número de orden agregada
     const tableColumn = ["#", "Producto", "Cantidad", "Precio"];
     const tableRows = items.map((item, index) => [
       index + 1,
@@ -170,7 +164,6 @@ function ProveedoresContent() {
       item.cantidad,
       item.precio ? `S/ ${Number(item.precio).toFixed(2)}` : "-"
     ]);
-
     autoTable(doc, {
       startY: 35,
       head: [tableColumn],
@@ -179,10 +172,8 @@ function ProveedoresContent() {
       headStyles: { fillColor: [79, 70, 229], fontStyle: 'bold' },
       styles: { fontSize: 9, cellPadding: 5 },
     });
-
     const totalSuma = items.reduce((acc, item) => acc + Number(item.precio || 0), 0);
     const finalY = (doc as any).lastAutoTable.finalY + 10;
-
     doc.setFontSize(12);
     doc.setTextColor(30, 41, 59);
     doc.setFont("helvetica", "bold");
@@ -200,7 +191,8 @@ function ProveedoresContent() {
     
     setEnviando(true);
     try {
-      const nombreFinal = tipoTransaction === "BONO" ? `[BONO] ${producto.toUpperCase().trim()}` : producto.toUpperCase().trim();
+      const nombreFinal = tipoTransaction === "BONO" ?
+        `[BONO] ${producto.toUpperCase().trim()}` : producto.toUpperCase().trim();
       const cantidadFinal = `${cantidad} ${tipoPresentacion}`;
       const precioFinal = tipoTransaction === "BONO" ? null : (precio ? parseFloat(precio) : null);
 
@@ -217,7 +209,6 @@ function ProveedoresContent() {
         .select();
 
       if (error) throw error;
-
       const insertadoId = data[0].id;
       setNuevoPedidoId(insertadoId);
 
@@ -230,7 +221,6 @@ function ProveedoresContent() {
       setTipoPresentacion("UNIDADES");
       setExito(true);
       setTimeout(() => setExito(false), 2000);
-
       setTimeout(() => {
         const elemento = document.getElementById(`pedido-${insertadoId}`);
         if (elemento) {
@@ -239,7 +229,6 @@ function ProveedoresContent() {
           setTimeout(() => elemento.classList.remove('ring-4', 'ring-emerald-400'), 1500);
         }
       }, 400);
-
       setTimeout(() => setNuevoPedidoId(null), 3000);
       document.getElementById("input-producto")?.focus();
     } catch (err) {
@@ -257,7 +246,6 @@ function ProveedoresContent() {
     const normalizar = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const diaNorm = normalizar(diaEntregaStr);
     const entregaIdx = dias.findIndex(d => normalizar(d) === diaNorm);
-
     if (entregaIdx === -1) return diaEntregaStr; 
     if (hoyIdx === entregaIdx) return `¡Hoy ${diaNorm} se entrega!`;
     if ((hoyIdx + 1) % 7 === entregaIdx) return `Se entrega mañana ${diaNorm}`;
@@ -296,7 +284,6 @@ function ProveedoresContent() {
           precio: editPrecio ? parseFloat(editPrecio) : null
         })
         .eq("id", pedidoAEditar.id);
-      
       if (error) throw error;
       setPedidoAEditar(null);
       await cargarPedidosDesdeBD();
@@ -306,7 +293,6 @@ function ProveedoresContent() {
     }
   };
 
-  // NUEVO: Función toggle para marcar/desmarcar todos los recibidos
   const toggleGrupoRecibido = async (provName: string, items: PedidoGuardadoDB[]) => {
     const todosRecibidos = items.every(i => i.recibido);
     const nuevoEstado = !todosRecibidos; 
@@ -344,9 +330,40 @@ function ProveedoresContent() {
     } catch (err) { console.error(err); }
   };
 
+  // Función unificada para guardar el nuevo orden de proveedores en Base de Datos y Localmente
+  const actualizarOrdenProveedoresBD = async (nuevoOrdenNombres: string[]) => {
+    const copiaProveedores = [...proveedores];
+    const proveedoresActualizados = copiaProveedores.map(p => {
+      const idx = nuevoOrdenNombres.indexOf(p.nombre.toUpperCase());
+      return idx !== -1 ? { ...p, orden: idx } : p;
+    }).sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0));
+    
+    setProveedores(proveedoresActualizados);
+
+    try {
+      await Promise.all(nuevoOrdenNombres.map(async (provName, index) => {
+        await supabase
+          .from("proveedores")
+          .update({ orden: index })
+          .ilike("nombre", provName); 
+      }));
+      
+      await cargarProveedoresDesdeBD();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleSortProviders = async () => {
     if (!dragProvItem.current || !dragProvOverItem.current || dragProvItem.current === dragProvOverItem.current) return;
-    const ordenActual = Array.from(new Set(pedidosActivosFiltrados.map(p => p.proveedor.toUpperCase())));
+    
+    const ordenActual = Array.from(new Set(pedidosActivosFiltrados.map(p => p.proveedor.toUpperCase())))
+      .sort((a, b) => {
+        const provA = proveedores.find(p => p.nombre.toUpperCase() === a);
+        const provB = proveedores.find(p => p.nombre.toUpperCase() === b);
+        return (provA?.orden || 0) - (provB?.orden || 0);
+      });
+
     const itemA = dragProvItem.current;
     const itemB = dragProvOverItem.current;
 
@@ -356,16 +373,35 @@ function ProveedoresContent() {
     if (indexA !== -1 && indexB !== -1) {
       ordenActual.splice(indexA, 1);
       ordenActual.splice(indexB, 0, itemA);
-
-      try {
-        await Promise.all(ordenActual.map(async (prov, index) => {
-          await supabase.from("proveedores").update({ orden: index }).eq("nombre", prov);
-        }));
-        await cargarProveedoresDesdeBD(); 
-      } catch (e) { console.error(e); }
+      await actualizarOrdenProveedoresBD(ordenActual);
     }
     dragProvItem.current = null;
     dragProvOverItem.current = null;
+  };
+
+  // Mover Proveedores por Flechas (Mobile Friendly)
+  const moverProveedorDireccion = async (provName: string, direccion: "SUBIR" | "BAJAR") => {
+    const ordenActual = Array.from(new Set(pedidosActivosFiltrados.map(p => p.proveedor.toUpperCase())))
+      .sort((a, b) => {
+        const provA = proveedores.find(p => p.nombre.toUpperCase() === a);
+        const provB = proveedores.find(p => p.nombre.toUpperCase() === b);
+        return (provA?.orden || 0) - (provB?.orden || 0);
+      });
+
+    const index = ordenActual.indexOf(provName.toUpperCase());
+    if (index === -1) return;
+
+    if (direccion === "SUBIR" && index > 0) {
+      const temp = ordenActual[index];
+      ordenActual[index] = ordenActual[index - 1];
+      ordenActual[index - 1] = temp;
+      await actualizarOrdenProveedoresBD(ordenActual);
+    } else if (direccion === "BAJAR" && index < ordenActual.length - 1) {
+      const temp = ordenActual[index];
+      ordenActual[index] = ordenActual[index + 1];
+      ordenActual[index + 1] = temp;
+      await actualizarOrdenProveedoresBD(ordenActual);
+    }
   };
 
   const handleSortRows = async (provName: string) => {
@@ -507,53 +543,54 @@ function ProveedoresContent() {
                   const tienePedidoActivo = proveedoresConPedidos.has(p.nombre.toUpperCase());
                   
                   return (
-                  <div 
-                    key={p.id} 
-                    onClick={() => {
-                      setProveedorSel(p.nombre);
-                      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer shadow-xs flex flex-col justify-between gap-3 ${
-                      proveedorSel === p.nombre 
-                        ? 'bg-indigo-100 border-indigo-600 ring-4 ring-indigo-50 scale-[1.01]'
-                        : tienePedidoActivo 
-                          ? 'bg-emerald-50 border-emerald-400 hover:border-emerald-500' 
-                          : 'bg-white border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start border-b border-slate-100/50 pb-2">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2.5 h-2.5 rounded-full ${p.color} shrink-0`}></div>
-                        <h3 className={`font-black uppercase text-xs tracking-tight ${tienePedidoActivo ? 'text-emerald-800' : 'text-slate-900'}`}>
-                          {p.nombre}
-                        </h3>
-                      </div>
+                    <div 
+                      key={p.id} 
+                      onClick={() => {
+                        setProveedorSel(p.nombre);
+                        formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }}
+                      className={`p-4 rounded-xl border transition-all cursor-pointer shadow-xs flex flex-col justify-between gap-3 ${
+                        proveedorSel === p.nombre 
+                          ? 'bg-indigo-100 border-indigo-600 ring-4 ring-indigo-50 scale-[1.01]'
+                          : tienePedidoActivo 
+                            ? 'bg-emerald-50 border-emerald-400 hover:border-emerald-500' 
+                            : 'bg-white border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start border-b border-slate-100/50 pb-2">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2.5 h-2.5 rounded-full ${p.color} shrink-0`}></div>
+                          <h3 className={`font-black uppercase text-xs tracking-tight ${tienePedidoActivo ? 'text-emerald-800' : 'text-slate-900'}`}>
+                            {p.nombre}
+                          </h3>
+                        </div>
 
-                      {p.catalogo_link && (
-                        <a 
-                          href={p.catalogo_link} 
-                          target="_blank" 
-                          rel="noreferrer" 
-                          onClick={(e) => e.stopPropagation()} 
-                          className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded text-[9px] font-black uppercase hover:bg-indigo-600 hover:text-white transition-colors border border-indigo-200"
-                        >
-                          Catálogo
-                        </a>
-                      )}
-                    </div>
-                    
-                    <div className={`space-y-1.5 text-left p-2 rounded-lg border text-xs ${tienePedidoActivo ? 'bg-emerald-100/50 border-emerald-200' : 'bg-white/60 border-slate-100/50'}`}>
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-slate-500 uppercase text-[10px]">Pedido:</span>
-                        <span className="font-black text-slate-800 uppercase italic bg-white px-2 py-0.5 rounded border border-slate-200">{p.dia_pedido}</span>
+                        {p.catalogo_link && (
+                          <a 
+                            href={p.catalogo_link} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            onClick={(e) => e.stopPropagation()} 
+                            className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded text-[9px] font-black uppercase hover:bg-indigo-600 hover:text-white transition-colors border border-indigo-200"
+                          >
+                            Catálogo
+                          </a>
+                        )}
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-indigo-500 uppercase text-[10px]">Entrega:</span>
-                        <span className="font-black text-indigo-700 uppercase italic bg-white/50 px-2 py-0.5 rounded border border-indigo-100">{p.dia_entrega}</span>
+               
+                      <div className={`space-y-1.5 text-left p-2 rounded-lg border text-xs ${tienePedidoActivo ? 'bg-emerald-100/50 border-emerald-200' : 'bg-white/60 border-slate-100/50'}`}>
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-slate-500 uppercase text-[10px]">Pedido:</span>
+                          <span className="font-black text-slate-800 uppercase italic bg-white px-2 py-0.5 rounded border border-slate-200">{p.dia_pedido}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-indigo-500 uppercase text-[10px]">Entrega:</span>
+                          <span className="font-black text-indigo-700 uppercase italic bg-white/50 px-2 py-0.5 rounded border border-indigo-100">{p.dia_entrega}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )})}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -695,37 +732,54 @@ function ProveedoresContent() {
                 const provB = proveedores.find(p => p.nombre.toUpperCase() === b);
                 return (provA?.orden || 0) - (provB?.orden || 0);
               })
-              .map((provName) => {
+              .map((provName, idx, arr) => {
                 const items = pedidosActivosFiltrados.filter(p => p.proveedor.toUpperCase() === provName);
                 const provBD = proveedores.find(p => p.nombre.toUpperCase() === provName.toUpperCase());
                 const colorHex = provBD?.color || "bg-slate-500";
                 const linkCat = provBD?.catalogo_link;
                 const totalPedidoProv = items.reduce((sum, item) => sum + (item.precio || 0), 0);
-
-                // NUEVO: Determinamos si este proveedor está expandido
                 const isExpanded = expandedProvs.has(provName);
 
                 return (
                   <div 
                     key={provName} 
                     draggable
-                    onDragStart={(e) => dragProvItem.current = provName}
-                    onDragEnter={(e) => dragProvOverItem.current = provName}
+                    onDragStart={() => { dragProvItem.current = provName; }}
+                    onDragEnter={() => { dragProvOverItem.current = provName; }}
                     onDragEnd={handleSortProviders}
                     onDragOver={(e) => e.preventDefault()}
-                    className="bg-slate-800/50 p-4 rounded-xl border border-slate-600 hover:border-slate-400 transition-colors cursor-move"
+                    className="bg-slate-800/50 p-4 rounded-xl border border-slate-600 hover:border-slate-400 transition-colors"
                   >
                     <div 
                       onClick={() => {
                         setProveedorSel(provName);
-                        toggleCollapse(provName); // El clic en el header ahora lo abre/cierra
+                        toggleCollapse(provName);
                         formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
                       }}
                       className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isExpanded ? 'mb-3 pb-3 border-b border-slate-700/50' : ''} group cursor-pointer`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="text-slate-500 cursor-grab active:cursor-grabbing" onClick={(e) => e.stopPropagation()}>☰</div>
-                        
+                        {/* Selector de arrastre + Botones móviles arriba/abajo */}
+                        <div className="flex items-center gap-1 bg-slate-700/30 p-1.5 rounded-lg border border-slate-600/40" onClick={(e) => e.stopPropagation()}>
+                          {/*<div className="text-slate-400 cursor-grab active:cursor-grabbing px-1 text-xs" title="Arrastrar">☰</div>*/}
+                          <button 
+                            disabled={idx === 0}
+                            onClick={() => moverProveedorDireccion(provName, "SUBIR")}
+                            className="text-[10px] text-slate-300 hover:bg-slate-600 w-5 h-5 flex items-center justify-center rounded disabled:opacity-30 transition-colors"
+                            title="Subir"
+                          >
+                            ▲
+                          </button>
+                          <button 
+                            disabled={idx === arr.length - 1}
+                            onClick={() => moverProveedorDireccion(provName, "BAJAR")}
+                            className="text-[10px] text-slate-300 hover:bg-slate-600 w-5 h-5 flex items-center justify-center rounded disabled:opacity-30 transition-colors"
+                            title="Bajar"
+                          >
+                            ▼
+                          </button>
+                        </div>
+                        {/*
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
@@ -736,6 +790,7 @@ function ProveedoresContent() {
                         >
                           {!isExpanded ? "▶" : "▼"}
                         </button>
+                        */}
 
                         <div className={`w-3 h-3 rounded-full ${colorHex}`}></div>
                         <div>
@@ -790,7 +845,6 @@ function ProveedoresContent() {
                                   }`}
                                 >
                                   <td className="p-2 w-8 text-slate-600">☰</td>
-                                  
                                   <td className="p-2">
                                     <div className="flex items-center gap-2">
                                       {!fueRecibido && !esBono && <span className="text-[10px]">🛒</span>}
@@ -817,7 +871,6 @@ function ProveedoresContent() {
                       </div>
                     )}
 
-                    {/* La suma queda fuera del div condicional 'isExpanded' para que siempre esté visible */}
                     {totalPedidoProv > 0 && (
                       <div className={`text-right px-2 pt-2 pb-1 mt-2 ${isExpanded ? 'border-t border-slate-700' : ''}`}>
                         <span className="text-[11px] text-slate-400 font-bold uppercase">Suma Estimada: </span>
