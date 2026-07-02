@@ -32,6 +32,7 @@ function ProveedoresContent() {
   const searchParams = useSearchParams();
   const proveedorQuery = searchParams.get("proveedor");
   const formRef = useRef<HTMLFormElement>(null);
+
   const [proveedores, setProveedores] = useState<ProveedorDB[]>([]);
   const [pedidosDB, setPedidosDB] = useState<PedidoGuardadoDB[]>([]);
   const [proveedorSel, setProveedorSel] = useState("");
@@ -54,9 +55,10 @@ function ProveedoresContent() {
   const [editCantidad, setEditCantidad] = useState("");
   const [editFormato, setEditFormato] = useState("UNIDADES");
   const [editPrecio, setEditPrecio] = useState("");
+
   const diasSemana = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
   const hoyDia = new Date().toLocaleDateString('es-ES', { weekday: 'long' }).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  
+
   const dragProvItem = useRef<string | null>(null);
   const dragProvOverItem = useRef<string | null>(null);
   const dragRowItem = useRef<number | null>(null);
@@ -157,23 +159,45 @@ function ProveedoresContent() {
     doc.setFontSize(10);
     doc.setTextColor(100);
     doc.text(`Generado el: ${fechaLegible}`, 14, 27);
+    
     const tableColumn = ["#", "Producto", "Cantidad", "Precio"];
     const tableRows = items.map((item, index) => [
       index + 1,
       item.producto.toUpperCase(),
-      item.cantidad,
+      item.cantidad === "-" ? "N/A" : item.cantidad,
       item.precio ? `S/ ${Number(item.precio).toFixed(2)}` : "-"
     ]);
+    
     autoTable(doc, {
-      startY: 35,
-      head: [tableColumn],
-      body: tableRows,
-      theme: 'grid',
-      headStyles: { fillColor: [79, 70, 229], fontStyle: 'bold' },
-      styles: { fontSize: 9, cellPadding: 5 },
-    });
+    startY: 35,
+    head: [tableColumn],
+    body: tableRows,
+    theme: 'grid',
+    headStyles: { fillColor: [79, 70, 229], fontStyle: 'bold' },
+    styles: { fontSize: 9, cellPadding: 5 },
+    
+    didParseCell: (data) => {
+      // 1. Verificamos que sea sección body y que la fila exista
+      if (data.section === 'body' && data.row.raw) {
+        
+        // 2. Extraemos el nombre del producto de forma segura
+        // En jspdf-autotable, 'raw' suele ser el array de la fila original
+        const rowData = data.row.raw as any[];
+        const productName = rowData[1] ? String(rowData[1]) : "";
+
+        // 3. Aplicamos la lógica de colores
+        if (productName.includes("[BONO]")) {
+          data.cell.styles.fillColor = [243, 232, 255]; // Morado claro
+        } else if (productName === "PERCEPCIÓN") {
+          data.cell.styles.fillColor = [254, 243, 199]; // Amarillo claro
+        }
+      }
+    }
+  });
+    
     const totalSuma = items.reduce((acc, item) => acc + Number(item.precio || 0), 0);
     const finalY = (doc as any).lastAutoTable.finalY + 10;
+    
     doc.setFontSize(12);
     doc.setTextColor(30, 41, 59);
     doc.setFont("helvetica", "bold");
@@ -184,17 +208,21 @@ function ProveedoresContent() {
 
   const manejarEnvioDirecto = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!producto.trim() || !cantidad || isNaN(Number(cantidad)) || !proveedorSel) {
+
+    const esPercepcion = tipoTransaction === "PERC";
+
+    if (!proveedorSel || (!esPercepcion && (!producto.trim() || !cantidad || isNaN(Number(cantidad))))) {
       alert("Completa los campos obligatorios correctamente");
       return;
     }
     
     setEnviando(true);
     try {
-      const nombreFinal = tipoTransaction === "BONO" ?
-        `[BONO] ${producto.toUpperCase().trim()}` : producto.toUpperCase().trim();
-      const cantidadFinal = `${cantidad} ${tipoPresentacion}`;
+      const nombreFinal = esPercepcion ? "PERCEPCIÓN" : (tipoTransaction === "BONO" ? `[BONO] ${producto.toUpperCase().trim()}` : producto.toUpperCase().trim());
+      const cantidadFinal = esPercepcion ? "-" : `${cantidad} ${tipoPresentacion}`;
       const precioFinal = tipoTransaction === "BONO" ? null : (precio ? parseFloat(precio) : null);
+
+      const nuevoOrden = -1;
 
       const { data, error } = await supabase
         .from("pedidos")
@@ -204,14 +232,36 @@ function ProveedoresContent() {
           cantidad: cantidadFinal,
           precio: precioFinal,
           creado_en: new Date().toISOString(),
-          orden: 999 
+          orden: nuevoOrden 
         }])
         .select();
 
       if (error) throw error;
+      
       const insertadoId = data[0].id;
       setNuevoPedidoId(insertadoId);
 
+      // Forzamos a que el proveedor se expanda si estaba colapsado
+      setExpandedProvs(prev => {
+        const next = new Set(prev);
+        next.add(proveedorSel.toUpperCase());
+        return next;
+      });
+
+      const nuevoObj = {
+        id: insertadoId,
+        proveedor: proveedorSel.toUpperCase(),
+        producto: nombreFinal,
+        cantidad: cantidadFinal,
+        precio: precioFinal,
+        creado_en: new Date().toISOString(),
+        orden: nuevoOrden,
+        recibido: false
+      };
+      // 1. Simplemente agrega el nuevo objeto al estado sin ordenar nada
+      setPedidosDB((prev: any) => [nuevoObj, ...prev].sort((a: any, b: any) => (Number(a.orden ?? 0) - Number(b.orden ?? 0))));
+
+      // 2. Ejecuta la función que ya tienes, que trae los datos ordenados desde la BD
       await cargarPedidosDesdeBD();
       
       setProducto("");
@@ -221,6 +271,8 @@ function ProveedoresContent() {
       setTipoPresentacion("UNIDADES");
       setExito(true);
       setTimeout(() => setExito(false), 2000);
+      
+      // Auto-scroll más confiable con un poco más de tiempo para el render de móviles
       setTimeout(() => {
         const elemento = document.getElementById(`pedido-${insertadoId}`);
         if (elemento) {
@@ -228,7 +280,7 @@ function ProveedoresContent() {
           elemento.classList.add('ring-4', 'ring-emerald-400');
           setTimeout(() => elemento.classList.remove('ring-4', 'ring-emerald-400'), 1500);
         }
-      }, 400);
+      }, 500);
       setTimeout(() => setNuevoPedidoId(null), 3000);
       document.getElementById("input-producto")?.focus();
     } catch (err) {
@@ -330,14 +382,12 @@ function ProveedoresContent() {
     } catch (err) { console.error(err); }
   };
 
-  // Función unificada para guardar el nuevo orden de proveedores en Base de Datos y Localmente
   const actualizarOrdenProveedoresBD = async (nuevoOrdenNombres: string[]) => {
     const copiaProveedores = [...proveedores];
     const proveedoresActualizados = copiaProveedores.map(p => {
       const idx = nuevoOrdenNombres.indexOf(p.nombre.toUpperCase());
       return idx !== -1 ? { ...p, orden: idx } : p;
     }).sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0));
-    
     setProveedores(proveedoresActualizados);
 
     try {
@@ -347,7 +397,6 @@ function ProveedoresContent() {
           .update({ orden: index })
           .ilike("nombre", provName); 
       }));
-      
       await cargarProveedoresDesdeBD();
     } catch (e) {
       console.error(e);
@@ -356,20 +405,17 @@ function ProveedoresContent() {
 
   const handleSortProviders = async () => {
     if (!dragProvItem.current || !dragProvOverItem.current || dragProvItem.current === dragProvOverItem.current) return;
-    
     const ordenActual = Array.from(new Set(pedidosActivosFiltrados.map(p => p.proveedor.toUpperCase())))
       .sort((a, b) => {
         const provA = proveedores.find(p => p.nombre.toUpperCase() === a);
         const provB = proveedores.find(p => p.nombre.toUpperCase() === b);
         return (provA?.orden || 0) - (provB?.orden || 0);
       });
-
     const itemA = dragProvItem.current;
     const itemB = dragProvOverItem.current;
 
     const indexA = ordenActual.indexOf(itemA);
     const indexB = ordenActual.indexOf(itemB);
-
     if (indexA !== -1 && indexB !== -1) {
       ordenActual.splice(indexA, 1);
       ordenActual.splice(indexB, 0, itemA);
@@ -379,7 +425,6 @@ function ProveedoresContent() {
     dragProvOverItem.current = null;
   };
 
-  // Mover Proveedores por Flechas (Mobile Friendly)
   const moverProveedorDireccion = async (provName: string, direccion: "SUBIR" | "BAJAR") => {
     const ordenActual = Array.from(new Set(pedidosActivosFiltrados.map(p => p.proveedor.toUpperCase())))
       .sort((a, b) => {
@@ -387,7 +432,6 @@ function ProveedoresContent() {
         const provB = proveedores.find(p => p.nombre.toUpperCase() === b);
         return (provA?.orden || 0) - (provB?.orden || 0);
       });
-
     const index = ordenActual.indexOf(provName.toUpperCase());
     if (index === -1) return;
 
@@ -629,44 +673,50 @@ function ProveedoresContent() {
               </select>
             </div>
 
-            <div>
-              <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">Producto</label>
-              <input
-                id="input-producto"
-                type="text"
-                value={producto}
-                onChange={(e) => setProducto(e.target.value)}
-                className="w-full px-4 py-3.5 bg-slate-100 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-bold text-slate-900 outline-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
+            {tipoTransaction !== "PERC" && (
               <div>
-                <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">Formato</label>
-                <select
-                  value={tipoPresentacion}
-                  onChange={(e) => setTipoPresentacion(e.target.value)}
-                  className="w-full px-4 py-3.5 bg-slate-100 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-bold text-slate-900 outline-none cursor-pointer"
-                >
-                  <option value="UNIDADES">UNIDADES</option>
-                  <option value="PAQUETES">PAQUETES</option>
-                  <option value="CAJETILLAS">CAJETILLAS</option>
-                  <option value="CAJA">CAJA</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">Cantidad</label>
+                <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">Producto</label>
                 <input
-                  type="number"
-                  value={cantidad}
-                  onChange={(e) => setCantidad(e.target.value)}
-                  min="1"
+                  id="input-producto"
+                  type="text"
+                  value={producto}
+                  onChange={(e) => setProducto(e.target.value)}
                   className="w-full px-4 py-3.5 bg-slate-100 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-bold text-slate-900 outline-none"
                 />
               </div>
-            </div>
+            )}
 
-            <div className={`grid ${tipoTransaction === "BONO" ? "grid-cols-1" : "grid-cols-2"} gap-2 transition-all duration-300`}>
+            {tipoTransaction !== "PERC" && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">Formato</label>
+                  <select
+                    value={tipoPresentacion}
+                    onChange={(e) => setTipoPresentacion(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-slate-100 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-bold text-slate-900 outline-none cursor-pointer"
+                  >
+                    <option value="UNIDADES">UNIDADES</option>
+                    <option value="PAQUETES">PAQUETES</option>
+                    <option value="CAJETILLAS">CAJETILLAS</option>
+                    <option value="CAJA">CAJA</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">
+                    Cantidad
+                  </label>
+                  <input
+                    type="number" 
+                    value={cantidad} 
+                    onChange={(e) => setCantidad(e.target.value)} 
+                    min="1"
+                    className="w-full px-4 py-3.5 bg-slate-100 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-bold text-slate-900 outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className={`grid ${tipoTransaction === "BONO" || tipoTransaction === "PERC" ? "grid-cols-1" : "grid-cols-2"} gap-2 transition-all duration-300`}>
               <div className="col-span-1">
                 <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">Tipo de Ingreso</label>
                 <select
@@ -676,19 +726,23 @@ function ProveedoresContent() {
                 >
                   <option value="COMPRA">🛒 COMPRA</option>
                   <option value="BONO">🎁 BONO</option>
+                  <option value="PERC">🚚 PERCEPCIÓN</option>
                 </select>
               </div>
 
+              {/* CAMPO PRECIO: Se muestra siempre, excepto en BONO */}
               {tipoTransaction !== "BONO" && (
-                <div className="col-span-1 animate-in fade-in zoom-in duration-300">
-                  <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">Precio</label>
+                <div className={tipoTransaction === "PERC" ? "col-span-1" : ""}>
+                  <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">
+                    Precio
+                  </label>
                   <div className="relative">
                     <span className="absolute left-3 top-3.5 font-black text-slate-400 text-sm">S/</span>
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0.10"
-                      value={precio}
+                      type="number" 
+                      step="0.01" 
+                      min="0.10" 
+                      value={precio} 
                       onChange={(e) => setPrecio(e.target.value)}
                       className="w-full pl-8 pr-4 py-3.5 bg-slate-100 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-bold text-slate-900 outline-none"
                     />
@@ -759,9 +813,7 @@ function ProveedoresContent() {
                       className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isExpanded ? 'mb-3 pb-3 border-b border-slate-700/50' : ''} group cursor-pointer`}
                     >
                       <div className="flex items-center gap-3">
-                        {/* Selector de arrastre + Botones móviles arriba/abajo */}
                         <div className="flex items-center gap-1 bg-slate-700/30 p-1.5 rounded-lg border border-slate-600/40" onClick={(e) => e.stopPropagation()}>
-                          {/*<div className="text-slate-400 cursor-grab active:cursor-grabbing px-1 text-xs" title="Arrastrar">☰</div>*/}
                           <button 
                             disabled={idx === 0}
                             onClick={() => moverProveedorDireccion(provName, "SUBIR")}
@@ -779,18 +831,6 @@ function ProveedoresContent() {
                             ▼
                           </button>
                         </div>
-                        {/*
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleCollapse(provName);
-                          }} 
-                          className="text-slate-400 hover:text-white bg-slate-700/50 rounded p-1 w-6 h-6 flex items-center justify-center transition-colors border border-slate-600"
-                          title={!isExpanded ? "Expandir" : "Contraer"}
-                        >
-                          {!isExpanded ? "▶" : "▼"}
-                        </button>
-                        */}
 
                         <div className={`w-3 h-3 rounded-full ${colorHex}`}></div>
                         <div>
@@ -825,8 +865,10 @@ function ProveedoresContent() {
                           <tbody>
                             {items.map(item => {
                               const esBono = item.producto.includes("[BONO]");
+                              const esPercepcion = item.producto === "PERCEPCIÓN";
                               const fueRecibido = item.recibido;
                               const esNuevo = item.id === nuevoPedidoId;
+
                               return (
                                 <tr 
                                   key={item.id}
@@ -847,10 +889,11 @@ function ProveedoresContent() {
                                   <td className="p-2 w-8 text-slate-600">☰</td>
                                   <td className="p-2">
                                     <div className="flex items-center gap-2">
-                                      {!fueRecibido && !esBono && <span className="text-[10px]">🛒</span>}
+                                      {!fueRecibido && !esBono && !esPercepcion && <span className="text-[10px]">🛒</span>}
                                       {!fueRecibido && esBono && <span className="text-[10px]">🎁</span>}
-                                      <span className={`font-black text-xs uppercase ${fueRecibido ? 'text-emerald-400' : esBono ? 'text-purple-400' : 'text-slate-200'}`}>
-                                        {item.cantidad} - {item.producto}
+                                      {!fueRecibido && esPercepcion && <span className="text-[10px]">🚚</span>}
+                                      <span className={`font-black text-xs uppercase ${fueRecibido ? 'text-emerald-400' : esBono ? 'text-purple-400' : esPercepcion ? 'text-amber-400' : 'text-slate-200'}`}>
+                                        {esPercepcion ? item.producto : `${item.cantidad} - ${item.producto}`}
                                       </span>
                                     </div>
                                   </td>
