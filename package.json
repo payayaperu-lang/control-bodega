@@ -15,8 +15,6 @@
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.104.0",
     "file-saver": "^2.0.5",
-    "jspdf": "^4.2.1",
-    "jspdf-autotable": "^5.0.8",
     "next": "16.2.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",

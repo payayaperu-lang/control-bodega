@@ -21,7 +21,7 @@ interface PedidoGuardadoDB {
   proveedor: string;
   producto: string;
   cantidad: string; 
-  precio?: number; 
+  precio?: number | null; 
   creado_en: string; 
   recibido?: boolean; 
   oculto?: boolean;
@@ -147,64 +147,13 @@ function ProveedoresContent() {
     });
   };
 
-  const exportarPDFIndividual = (provName: string, items: PedidoGuardadoDB[]) => {
-    const doc = new jsPDF();
-    doc.setFontSize(18);
-    doc.setTextColor(30, 41, 59);
-    doc.text(`NOTA DE PEDIDO: ${provName.toUpperCase()}`, 14, 20);
-    
-    const opcionesFecha: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    const fechaLegible = new Date().toLocaleDateString("es-ES", opcionesFecha);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Generado el: ${fechaLegible}`, 14, 27);
-    
-    const tableColumn = ["#", "Producto", "Cantidad", "Precio"];
-    const tableRows = items.map((item, index) => [
-      index + 1,
-      item.producto.toUpperCase(),
-      item.cantidad === "-" ? "N/A" : item.cantidad,
-      item.precio ? `S/ ${Number(item.precio).toFixed(2)}` : "-"
-    ]);
-    
-    autoTable(doc, {
-    startY: 35,
-    head: [tableColumn],
-    body: tableRows,
-    theme: 'grid',
-    headStyles: { fillColor: [79, 70, 229], fontStyle: 'bold' },
-    styles: { fontSize: 9, cellPadding: 5 },
-    
-    didParseCell: (data) => {
-      // 1. Verificamos que sea sección body y que la fila exista
-      if (data.section === 'body' && data.row.raw) {
-        
-        // 2. Extraemos el nombre del producto de forma segura
-        // En jspdf-autotable, 'raw' suele ser el array de la fila original
-        const rowData = data.row.raw as any[];
-        const productName = rowData[1] ? String(rowData[1]) : "";
-
-        // 3. Aplicamos la lógica de colores
-        if (productName.includes("[BONO]")) {
-          data.cell.styles.fillColor = [243, 232, 255]; // Morado claro
-        } else if (productName === "PERCEPCIÓN") {
-          data.cell.styles.fillColor = [254, 243, 199]; // Amarillo claro
-        }
-      }
-    }
-  });
-    
-    const totalSuma = items.reduce((acc, item) => acc + Number(item.precio || 0), 0);
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
-    
-    doc.setFontSize(12);
-    doc.setTextColor(30, 41, 59);
-    doc.setFont("helvetica", "bold");
-    doc.text(`MONTO TOTAL ESTIMADO: S/ ${totalSuma.toFixed(2)}`, 14, finalY);
-
-    doc.save(`Pedido_${provName}_${new Date().toLocaleDateString("es-ES").replace(/\//g, '-')}.pdf`);
-  };
+  // Función actualizada
+const abrirPDFSimulado = (items: PedidoGuardadoDB[]) => {
+  // Extraemos todos los IDs de este bloque y los unimos con comas
+  const ids = items.map(item => item.id).join(',');
+  // Abrimos la nueva pestaña pasando los IDs exactos
+  window.open(`proveedores/pdf?ids=${ids}`, '_blank');
+};
 
   const manejarEnvioDirecto = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -241,14 +190,13 @@ function ProveedoresContent() {
       const insertadoId = data[0].id;
       setNuevoPedidoId(insertadoId);
 
-      // Forzamos a que el proveedor se expanda si estaba colapsado
       setExpandedProvs(prev => {
         const next = new Set(prev);
         next.add(proveedorSel.toUpperCase());
         return next;
       });
 
-      const nuevoObj = {
+      const nuevoObj: PedidoGuardadoDB = {
         id: insertadoId,
         proveedor: proveedorSel.toUpperCase(),
         producto: nombreFinal,
@@ -258,10 +206,8 @@ function ProveedoresContent() {
         orden: nuevoOrden,
         recibido: false
       };
-      // 1. Simplemente agrega el nuevo objeto al estado sin ordenar nada
-      setPedidosDB((prev: any) => [nuevoObj, ...prev].sort((a: any, b: any) => (Number(a.orden ?? 0) - Number(b.orden ?? 0))));
-
-      // 2. Ejecuta la función que ya tienes, que trae los datos ordenados desde la BD
+      
+      setPedidosDB((prev) => [nuevoObj, ...prev].sort((a, b) => (Number(a.orden ?? 0) - Number(b.orden ?? 0))));
       await cargarPedidosDesdeBD();
       
       setProducto("");
@@ -272,7 +218,6 @@ function ProveedoresContent() {
       setExito(true);
       setTimeout(() => setExito(false), 2000);
       
-      // Auto-scroll más confiable con un poco más de tiempo para el render de móviles
       setTimeout(() => {
         const elemento = document.getElementById(`pedido-${insertadoId}`);
         if (elemento) {
@@ -332,6 +277,7 @@ function ProveedoresContent() {
         .from("pedidos")
         .update({ 
           producto: editProducto.toUpperCase().trim(),
+          text_cantidad: `${editCantidad} ${editFormato}`, // Ajustado por si usas un campo específico en DB, o 'cantidad' estándar:
           cantidad: `${editCantidad} ${editFormato}`,
           precio: editPrecio ? parseFloat(editPrecio) : null
         })
@@ -551,6 +497,7 @@ function ProveedoresContent() {
           />
           {busqueda && (
             <button 
+              type="button"
               onClick={() => setBusqueda("")}
               className="px-2 py-1 text-[10px] font-black bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 uppercase shrink-0"
             >
@@ -570,6 +517,7 @@ function ProveedoresContent() {
                 </p>
               </div>
               <button 
+                type="button"
                 onClick={() => { setDiaAbierto(null); setBusqueda(""); }}
                 className="text-[10px] font-black uppercase text-slate-400 hover:text-slate-700 bg-white px-2 py-1 rounded-md border"
               >
@@ -730,7 +678,6 @@ function ProveedoresContent() {
                 </select>
               </div>
 
-              {/* CAMPO PRECIO: Se muestra siempre, excepto en BONO */}
               {tipoTransaction !== "BONO" && (
                 <div className={tipoTransaction === "PERC" ? "col-span-1" : ""}>
                   <label className="block text-[10px] font-black text-slate-900 uppercase ml-3 mb-1.5 tracking-widest">
@@ -815,6 +762,7 @@ function ProveedoresContent() {
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-1 bg-slate-700/30 p-1.5 rounded-lg border border-slate-600/40" onClick={(e) => e.stopPropagation()}>
                           <button 
+                            type="button"
                             disabled={idx === 0}
                             onClick={() => moverProveedorDireccion(provName, "SUBIR")}
                             className="text-[10px] text-slate-300 hover:bg-slate-600 w-5 h-5 flex items-center justify-center rounded disabled:opacity-30 transition-colors"
@@ -823,6 +771,7 @@ function ProveedoresContent() {
                             ▲
                           </button>
                           <button 
+                            type="button"
                             disabled={idx === arr.length - 1}
                             onClick={() => moverProveedorDireccion(provName, "BAJAR")}
                             className="text-[10px] text-slate-300 hover:bg-slate-600 w-5 h-5 flex items-center justify-center rounded disabled:opacity-30 transition-colors"
@@ -835,8 +784,8 @@ function ProveedoresContent() {
                         <div className={`w-3 h-3 rounded-full ${colorHex}`}></div>
                         <div>
                           <h4 className="font-black text-sm uppercase tracking-wider group-hover:text-indigo-400 transition-colors">{provName}</h4>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase italic mt-0.5">
-                            {obtenerTextoEntrega(provBD?.dia_entrega || "")} {!isExpanded && `(${items.length} prod.)`}
+                          <p className="text-[12px] text-slate-200 font-bold uppercase italic mt-0.5">
+                            {obtenerTextoEntrega(provBD?.dia_entrega || "")} ({items.length} prod.)
                           </p>
                         </div>
                       </div>
@@ -847,13 +796,18 @@ function ProveedoresContent() {
                             Catálogo
                           </a>
                         )}
-                        <button title="EXPORTAR PDF" onClick={() => exportarPDFIndividual(provName, items)} className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-black text-[10px] uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-colors border border-emerald-500/30">
-                          📄 PDF
-                        </button>
-                        <button title={items.every(i => i.recibido) ? "DESMARCAR TODO" : "MARCAR TODO"} onClick={() => toggleGrupoRecibido(provName, items)} className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-300 font-black text-[10px] uppercase tracking-wider hover:bg-blue-500 hover:text-white transition-colors border border-blue-500/30">
+                        <button 
+                        type="button" 
+                        title="VER DOCUMENTO" 
+                        onClick={() => abrirPDFSimulado(items)} 
+                        className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-black text-[10px] uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-colors border border-emerald-500/30"
+                      >
+                        📄 PDF
+                      </button>
+                        <button type="button" title={items.every(i => i.recibido) ? "DESMARCAR TODO" : "MARCAR TODO"} onClick={() => toggleGrupoRecibido(provName, items)} className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-300 font-black text-[10px] uppercase tracking-wider hover:bg-blue-500 hover:text-white transition-colors border border-blue-500/30">
                           {items.every(i => i.recibido) ? '↩️' : '✅'}
                         </button>
-                        <button title="ELIMINAR" onClick={() => eliminarGrupoProveedorDB(provName, items.map(i => i.id))} className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-300 font-black text-[10px] uppercase tracking-wider hover:bg-red-500 hover:text-white transition-colors border border-red-500/30">
+                        <button type="button" title="ELIMINAR" onClick={() => eliminarGrupoProveedorDB(provName, items.map(i => i.id))} className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-300 font-black text-[10px] uppercase tracking-wider hover:bg-red-500 hover:text-white transition-colors border border-red-500/30">
                           🗑️
                         </button>
                       </div>
@@ -886,7 +840,7 @@ function ProveedoresContent() {
                                         : 'bg-slate-900/40 hover:bg-slate-800'
                                   }`}
                                 >
-                                  <td className="p-2 w-8 text-slate-600">☰</td>
+                                  <td className="p-2 w-8 text-slate-600 select-none">☰</td>
                                   <td className="p-2">
                                     <div className="flex items-center gap-2">
                                       {!fueRecibido && !esBono && !esPercepcion && <span className="text-[10px]">🛒</span>}
@@ -903,8 +857,8 @@ function ProveedoresContent() {
                                     </span>
                                   </td>
                                   <td className="p-2 w-24 text-right opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => abrirModalEdicion(item)} className="px-2 py-1 mr-1 bg-slate-700 text-slate-300 rounded text-[9px] font-black uppercase hover:bg-slate-600">✏️</button>
-                                    <button onClick={() => eliminarPedidoDB(item.id)} className="px-2 py-1 bg-red-900/50 text-red-300 rounded text-[9px] font-black uppercase hover:bg-red-800">🗑️</button>
+                                    <button type="button" onClick={() => abrirModalEdicion(item)} className="px-2 py-1 mr-1 bg-slate-700 text-slate-300 rounded text-[9px] font-black uppercase hover:bg-slate-600">✏️</button>
+                                    <button type="button" onClick={() => eliminarPedidoDB(item.id)} className="px-2 py-1 bg-red-900/50 text-red-300 rounded text-[9px] font-black uppercase hover:bg-red-800">🗑️</button>
                                   </td>
                                 </tr>
                               );
@@ -933,6 +887,7 @@ function ProveedoresContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-slate-200 relative animate-in zoom-in-95 duration-200">
             <button 
+              type="button"
               onClick={() => setPedidoAEditar(null)}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-2"
             >

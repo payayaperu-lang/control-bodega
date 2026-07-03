@@ -3,9 +3,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from "../lib/supabase";
 
-// CONFIGURACIÓN DE API
-const GIPHY_API_KEY = "DiZzlCrJVUFnHeMDEs9UC265nVW2KtOS"; 
-
 // ==========================================
 // INTERFACES Y DATOS BASE
 // ==========================================
@@ -331,19 +328,6 @@ export default function GamificacionPage() {
   const [animacionPersonaje, setAnimacionPersonaje] = useState<'idle' | 'saludar' | 'bailar' | 'dormir'>('idle');
   const [mensajeMascota, setMensajeMascota] = useState<string>("¡Hola! Listo para registrar.");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  
-  const [nuevaAcotacion, setNuevaAcotacion] = useState('');
-  const [tipoPost, setTipoPost] = useState<'general'|'alerta'|'logro'>('general');
-  const [feedPosts, setFeedPosts] = useState<LogActividad[]>([]);
-
-  const [mostrarMensajesSistema, setMostrarMensajesSistema] = useState(false);
-
-  // ESTADOS GIPHY
-  const [mostrarBuscadorGif, setMostrarBuscadorGif] = useState(false);
-  const [terminoGif, setTerminoGif] = useState('');
-  const [opcionesGif, setOpcionesGif] = useState<any[]>([]);
-  const [nuevoGifUrl, setNuevoGifUrl] = useState('');
-  const [buscandoGif, setBuscandoGif] = useState(false);
 
   // ==========================================
   // LOGROS DINÁMICOS
@@ -393,7 +377,6 @@ export default function GamificacionPage() {
       .limit(50);
 
     if (!error && data) {
-      setFeedPosts(data);
       const totalXP = data.reduce((acc, curr) => acc + (curr.xp || 0), 0);
       setUserXP(totalXP);
       setPuntos(Math.floor(totalXP * 0.5));
@@ -408,50 +391,6 @@ export default function GamificacionPage() {
   useEffect(() => {
     if (accionActiva === 'inventario') fetchInventario();
   }, [accionActiva, fechaDesde, fechaHasta, tipoInventario]);
-
-  // Búsqueda GIPHY
-  useEffect(() => {
-    if (!mostrarBuscadorGif) return;
-    const buscarEnGiphy = async () => {
-      setBuscandoGif(true);
-      try {
-        const url = terminoGif.trim() === ''
-          ? `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=4&rating=g`
-          : `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(terminoGif)}&limit=4&rating=g`;
-
-        const respuesta = await fetch(url);
-        if (!respuesta.ok) throw new Error(`Error de Giphy: HTTP ${respuesta.status}`);
-
-        const data = await respuesta.json();
-        if (data.data && data.data.length > 0) {
-          const gifsMapeados = data.data.map((gif: any) => ({
-            id: gif.id,
-            url: gif.images.downsized_medium.url
-          }));
-          setOpcionesGif(gifsMapeados);
-        } else {
-          throw new Error("No hay resultados en Giphy");
-        }
-      } catch (error) {
-        console.error("🛑 Giphy falló. Motivo:", error);
-        const term = terminoGif.toLowerCase().trim();
-        if (term === '') {
-          setOpcionesGif(GALERIA_GIFS_DB.slice(0, 4));
-        } else {
-          const filtrados = GALERIA_GIFS_DB.filter(g => g.tag.toLowerCase().includes(term));
-          setOpcionesGif(filtrados.slice(0, 4));
-        }
-      } finally {
-        setBuscandoGif(false);
-      }
-    };
-
-    const timeoutId = setTimeout(() => {
-      buscarEnGiphy();
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [terminoGif, mostrarBuscadorGif]);
 
   async function fetchEnvases() {
     let query = supabase.from("envases").select("*").order("id", { ascending: false });
@@ -708,137 +647,6 @@ export default function GamificacionPage() {
                   ))}
                 </div>
               </div>
-            </div>
-          </section>
-
-           {/* MURO DEL TURNO */}
-          <section className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 shadow-sm relative z-10">
-            <h3 className="text-sm font-black text-slate-800 uppercase mb-4">Muro del Turno</h3>
-            
-            <div className="bg-slate-50 rounded-2xl p-3 sm:p-4 border border-slate-200 mb-6 flex flex-col gap-3 relative">
-              
-              {/* BOTONES SUPERIORES */}
-              <div className="flex flex-wrap gap-2 justify-between items-center">
-                <div className="flex gap-2">
-                  <button onClick={()=>setTipoPost('general')} className={`text-[10px] font-bold px-3 py-1 rounded-full ${tipoPost==='general'?'bg-slate-800 text-white':'bg-slate-200 text-slate-600'}`}>💬 Novedad</button>
-                  <button onClick={()=>setTipoPost('alerta')} className={`text-[10px] font-bold px-3 py-1 rounded-full ${tipoPost==='alerta'?'bg-rose-600 text-white':'bg-slate-200 text-slate-600'}`}>🚨 Alerta</button>
-                </div>
-                <button 
-                  onClick={() => setMostrarMensajesSistema(!mostrarMensajesSistema)} 
-                  className={`text-[10px] font-bold px-3 py-1 rounded-full transition-colors ${mostrarMensajesSistema ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
-                >
-                  {mostrarMensajesSistema ? '🏆 Ocultar Logros' : '🏆 Ver Logros'}
-                </button>
-              </div>
-
-              {/* BUSCADOR DE GIFS EN GIPHY */}
-              {mostrarBuscadorGif && !nuevoGifUrl && (
-                <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-md mb-2 animate-in slide-in-from-top-2">
-                  <input 
-                    type="text" 
-                    placeholder="Buscar GIF..." 
-                    value={terminoGif}
-                    onChange={(e) => setTerminoGif(e.target.value)}
-                    autoFocus
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs mb-3 focus:outline-none focus:border-indigo-400"
-                  />
-                  
-                  {buscandoGif ? (
-                    <p className="text-center text-xs text-indigo-400 font-bold py-4 animate-pulse">Buscando...</p>
-                  ) : opcionesGif.length > 0 ? (
-                    <div className="grid grid-cols-4 gap-2">
-                      {opcionesGif.map(gif => (
-                        <div 
-                          key={gif.id} 
-                          onClick={() => { setNuevoGifUrl(gif.url); setMostrarBuscadorGif(false); setTerminoGif(''); }}
-                          className="relative group cursor-pointer aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-indigo-500 transition-all bg-slate-100"
-                        >
-                          <img src={gif.url} alt="gif preview" className="w-full h-full object-cover" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-center text-xs text-slate-400 font-bold py-4">Sin resultados 😢</p>
-                  )}
-                </div>
-              )}
-
-              {/* PREVIEW DEL GIF SELECCIONADO */}
-              {nuevoGifUrl && (
-                <div className="relative inline-block w-fit mt-2 animate-in zoom-in-95">
-                  <img src={nuevoGifUrl} alt="Preview seleccionado" className="h-24 sm:h-32 rounded-xl object-cover border-4 border-indigo-100 shadow-sm" />
-                  <button 
-                    onClick={() => setNuevoGifUrl('')} 
-                    className="absolute -top-3 -right-3 bg-rose-600 hover:bg-rose-700 text-white w-7 h-7 rounded-full font-bold flex items-center justify-center shadow-lg transition-transform hover:scale-110"
-                    title="Quitar GIF"
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
-
-              {/* INPUT Y BOTÓN ENVIAR */}
-              <div className="flex gap-2 items-center mt-2">
-                <div className="flex-1 flex items-center bg-white border border-slate-200 rounded-lg focus-within:ring-2 focus-within:ring-slate-200 transition-all overflow-hidden pr-2">
-                  <input 
-                    type="text" 
-                    placeholder={nuevoGifUrl ? "Añade un comentario..." : "Escribe aquí..."} 
-                    value={nuevaAcotacion} 
-                    onChange={(e) => setNuevaAcotacion(e.target.value)} 
-                    className="flex-1 bg-transparent p-2 sm:p-3 text-sm focus:outline-none" 
-                  />
-                  <button 
-                    onClick={() => { setMostrarBuscadorGif(!mostrarBuscadorGif); setTerminoGif(''); }} 
-                    disabled={!!nuevoGifUrl}
-                    className={`shrink-0 flex items-center justify-center px-2 py-1.5 rounded-md text-[10px] font-black tracking-wider transition-colors ${nuevoGifUrl ? 'text-slate-300 cursor-not-allowed' : 'text-indigo-500 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer'}`}
-                    title="Agregar GIF"
-                  >
-                    <span className="border-2 border-current rounded px-1">GIF</span>
-                  </button>
-                </div>
-
-                <button 
-                  onClick={async () => { 
-                    if (!nuevaAcotacion.trim() && !nuevoGifUrl) return;
-                    await supabase.from('gamificacion_logs').insert([{ 
-                      usuario: 'Turno Activo',
-                      accion: nuevaAcotacion || 'Compartió un GIF', 
-                      xp: 5, 
-                      tipo: tipoPost, 
-                      gif: nuevoGifUrl 
-                    }]);
-                    setNuevaAcotacion(''); 
-                    setNuevoGifUrl('');
-                    setMostrarBuscadorGif(false);
-                    fetchMuroYXP();
-                  }} 
-                  className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 sm:px-5 py-2 sm:py-3 rounded-lg text-sm transition-colors shrink-0"
-                >
-                  Enviar
-                </button>
-              </div>
-            </div>
-
-            {/* FEED DE POSTS (CON SCROLLBAR ESTILIZADO) */}
-            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-1 sm:pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-300 transition-colors">
-              {(mostrarMensajesSistema ? feedPosts : feedPosts.filter(p => p.usuario !== 'Sistema')).map(post => (
-                <div key={post.id} className={`p-3 sm:p-4 rounded-2xl border ${post.tipo === 'alerta' ? 'bg-rose-50 border-rose-100' : post.tipo === 'logro' ? 'bg-amber-50 border-amber-100' : 'bg-white border-slate-100'}`}>
-                   <div className="flex justify-between items-start mb-2">
-                      <span className="text-[10px] sm:text-[11px] font-black uppercase text-slate-500">
-                        {post.usuario} 
-                        {post.fecha && <><span className="font-normal mx-1">•</span> {new Date(post.fecha).toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})}</>}
-                      </span>
-                      <span className="text-[9px] sm:text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">+{post.xp} XP</span>
-                   </div>
-                   {post.accion && post.accion !== 'Compartió un GIF' && (
-                     <p className="text-xs sm:text-sm font-medium text-slate-800">{post.accion}</p>
-                   )}
-                   {post.gif && <img src={post.gif} alt="gif adjunto" className="mt-3 rounded-xl max-h-32 sm:max-h-48 object-cover w-full sm:w-auto border border-slate-100" />}
-                </div>
-              ))}
-              {(mostrarMensajesSistema ? feedPosts : feedPosts.filter(p => p.usuario !== 'Sistema')).length === 0 && (
-                <p className="text-center text-xs text-slate-400 font-bold uppercase py-6">El muro está vacío</p>
-              )}
             </div>
           </section>
         </div>
