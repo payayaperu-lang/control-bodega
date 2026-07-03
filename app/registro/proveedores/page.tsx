@@ -3,8 +3,6 @@
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabase"; 
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 
 interface ProveedorDB {
   id: number;
@@ -145,8 +143,8 @@ function ProveedoresContent() {
       else next.add(provName);
       return next;
     });
-  };
-
+  }; 
+ 
   // Función actualizada
 const abrirPDFSimulado = (items: PedidoGuardadoDB[]) => {
   // Extraemos todos los IDs de este bloque y los unimos con comas

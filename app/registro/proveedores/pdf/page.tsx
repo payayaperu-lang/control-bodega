@@ -11,7 +11,7 @@ interface PedidoPDF {
   cantidad: string;
   precio: number | null;
   creado_en: string;
-}
+} 
 
 function VistaPDFContent() {
   const searchParams = useSearchParams();
