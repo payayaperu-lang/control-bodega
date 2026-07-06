@@ -84,7 +84,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <aside className="hidden md:flex w-64 bg-slate-900 text-white p-6 flex-col shadow-xl z-20 shrink-0">
         <div className="mb-10">
-          <Link href="/registro" className="block">
+          <Link href="/dashboard" className="block">
             <h1 className="text-2xl font-black tracking-tighter italic">SYS. <span className="text-blue-500">BODEGA</span></h1>
           </Link>
         </div>
@@ -94,6 +94,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Link href="/registro/vencimientos" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs ${isActiveDesktop("/registro/vencimientos")}`}>📅 VENCIMIENTOS</Link>
           <Link href="/registro/dsobrante" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs ${isActiveDesktop("/registro/dsobrante")}`}>💵 DINERO SOBRANTE</Link>
           <Link href="/registro/proveedores" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs ${isActiveDesktop("/registro/proveedores")}`}>🚚 PROVEEDORES</Link>
+          <Link href="/registro/horarios" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs ${isActiveDesktop("/registro/horarios")}`}>⏱️ HORARIOS</Link>
         </nav>
         <button onClick={() => { localStorage.removeItem("auth"); router.push("/login"); }} className="mt-auto w-full bg-slate-800 text-slate-400 py-4 rounded-2xl text-[10px] font-black uppercase">Cerrar Sesión 🚪</button>
       </aside>
@@ -101,9 +102,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <section className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
         <header className="bg-white border-b border-slate-200 sticky top-0 z-40 px-4 py-2.5 flex flex-col shadow-sm">
           <div className="flex items-center justify-between w-full">
-            <Link href="/registro" className="text-2xl font-black tracking-tighter italic"><span className="text-blue-500">PAYAYA</span></Link>
+            <Link href="/dashboard" className="text-2xl font-black tracking-tighter italic"><span className="text-blue-500">PAYAYA</span></Link>
             <div className="flex items-center gap-2">
-              <Link href="/registro" className="block">
+              <Link href="/dashboard" className="block">
               <div className="w-9 h-9 bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-xs rounded-full flex items-center justify-center">PA</div>
               </Link>
             </div>
@@ -125,6 +126,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Link title="VENCIMIENTOS" href="/registro/vencimientos" className={`flex-1 flex justify-center py-2 ${isActiveMobile("/registro/vencimientos")}`}>
               📅  
             </Link>
+            <Link href="/registro/horarios" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs ${isActiveDesktop("/registro/horarios")}`}>
+            🕰️ 
+            </Link>
+
             <button onClick={() => setShowMobileMenu(!showMobileMenu)} className="flex-1 flex justify-center py-2"><svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
           </nav>
         </header>
@@ -138,6 +143,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <Link href="/registro/productos" className="p-3 bg-slate-50 rounded-xl text-xs font-bold">🥨 Productos FYS</Link>
                 <Link href="/registro/proveedores" className="p-3 bg-slate-50 rounded-xl text-xs font-bold">🚚 Proveedores</Link>
                 <Link href="/registro/vencimientos" className="p-3 bg-slate-50 rounded-xl text-xs font-bold">📅 Vencimientos</Link>
+                <Link href="/registro/horarios" className="p-3 bg-slate-50 rounded-xl text-xs font-bold">⏱️ Horarios</Link>
               </nav>
               <button onClick={() => { localStorage.removeItem("auth"); router.push("/login"); }} className="w-full bg-slate-900 text-white py-3 rounded-xl text-xs font-black">Cerrar Sesión 🚪</button>
             </div>

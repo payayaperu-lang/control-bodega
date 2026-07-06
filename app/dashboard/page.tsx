@@ -120,42 +120,6 @@ export default function DashboardAdminElite() {
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 rounded-full blur-[100px] -mr-32 -mt-32"></div>
       </header>
 
-      {/* MONITOR DE REPOSICIÓN VIVO */}
-      <section className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-200">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b border-slate-100 pb-6">
-          <div>
-            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-rose-500 mb-1">Alertas del Personal</h3>
-            <h2 className="text-2xl font-black uppercase tracking-tighter italic">Monitor de Reposición Urgente</h2>
-          </div>
-          {/* CORREGIDO: Redirección directa a la carpeta de Abastecimiento */}
-          <button 
-            onClick={() => router.push('/dashboard/abastecimiento')}
-            className="text-[10px] font-black uppercase bg-slate-100 px-6 py-3 rounded-xl hover:bg-slate-200 transition-all"
-          >
-            Gestionar Todo el Inventario →
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          {alertasVivas.length > 0 ? alertasVivas.map(a => (
-            <button 
-              key={a.id} 
-              onClick={() => router.push('/dashboard/abastecimiento')}
-              className="group bg-rose-50 border border-rose-100 px-6 py-3 rounded-2xl flex items-center gap-3 hover:bg-rose-600 text-left transition-all"
-            >
-              <span className="text-2xl group-hover:scale-125 transition-transform">{a.icono}</span>
-              <div>
-                <p className="text-[10px] font-black uppercase text-rose-600 group-hover:text-white leading-none">{a.nombre}</p>
-                <p className="text-[8px] font-bold text-rose-400 group-hover:text-rose-100 uppercase mt-1">Marcar como rellenado</p>
-              </div>
-            </button>
-          )) : (
-            <div className="w-full text-center py-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-              <p className="text-[10px] font-black uppercase text-emerald-600 tracking-widest">✅ No hay faltantes reportados por los trabajadores</p>
-            </div>
-          )}
-        </div>
-      </section>
-
       {/* KPIs PRINCIPALES */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className={`relative overflow-hidden p-10 rounded-[3.5rem] text-white shadow-2xl transition-all ${balanceNeto >= 0 ? 'bg-emerald-500 shadow-emerald-500/20' : 'bg-rose-500 shadow-rose-500/20'}`}>
