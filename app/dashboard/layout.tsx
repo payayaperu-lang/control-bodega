@@ -98,11 +98,11 @@ useEffect(() => {
           </Link>
         </div>
         <nav className="space-y-2 flex-1">
-          <Link href="/registro/envases" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs ${isActiveDesktop("/registro/envases")}`}>🍾 CONTROL ENVASES</Link>
+          <Link href="/dashboard/envases" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs ${isActiveDesktop("/dashboard/envases")}`}>🍾 CONTROL ENVASES</Link>
           <Link href="/dashboard/productos" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs ${isActiveDesktop("/dashboard/productos")}`}>🥨 PRODUCTOS FYS</Link>
-          <Link href="/registro/vencimientos" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs ${isActiveDesktop("/registro/vencimientos")}`}>📅 VENCIMIENTOS</Link>
+          <Link href="/dashboard/vencimientos" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs ${isActiveDesktop("/dashboard/vencimientos")}`}>📅 VENCIMIENTOS</Link>
           <Link href="/dashboard/dsobrante" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs ${isActiveDesktop("/dashboard/dsobrante")}`}>💵 DINERO SOBRANTE</Link>
-          <Link href="/registro/proveedores" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs ${isActiveDesktop("/registro/proveedores")}`}>🚚 PROVEEDORES</Link>
+          <Link href="/dashboard/proveedores/pedidos" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs ${isActiveDesktop("/dashboard/proveedores/pedidos")}`}>🚚 PEDIDOS</Link>
           <Link href="/dashboard/proveedores" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs ${isActiveDesktop("/dashboard/proveedores")}`}>🚚 ADMIN PROVEEDORES</Link>
           <Link href="/dashboard/horarios" className={`flex items-center gap-3 px-4 py-4 rounded-2xl font-bold text-xs ${isActiveDesktop("/dashboard/horarios")}`}>🕰️ HORARIOS ADMIN</Link>
         </nav>
@@ -112,7 +112,7 @@ useEffect(() => {
       <section className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
         <header className="bg-white border-b border-slate-200 sticky top-0 z-40 px-4 py-2.5 flex flex-col shadow-sm">
           <div className="flex items-center justify-between w-full">
-            <Link href="/dashboard" className="text-2xl font-black tracking-tighter italic"><span className="text-blue-500">PAYAYA</span></Link>
+            <Link href="/dashboard" className="text-2xl font-black tracking-tighter italic"><span className="text-blue-500">PAYAYA ADMIN</span></Link>
             <div className="flex items-center gap-2">
               <Link href="/dashboard" className="block">
               <div className="w-9 h-9 bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-xs rounded-full flex items-center justify-center">PA</div>
@@ -121,22 +121,22 @@ useEffect(() => {
           </div>
 
           <nav className="md:hidden flex justify-around items-center w-full mt-3 border-t pt-1.5">
-            <Link title="ENVASES" href="/registro/envases" className={`flex-1 flex justify-center py-2 ${isActiveMobile("/registro/envases")}`}>
+            <Link title="ENVASES" href="/dashboard/envases" className={`flex-1 flex justify-center py-2 ${isActiveMobile("/registro/envases")}`}>
               🍾
             </Link>
-            <Link title="DINERO" href="/registro/dsobrante" className={`flex-1 flex justify-center py-2 ${isActiveMobile("/registro/dsobrante")}`}>
+            <Link title="DINERO" href="/dashboard/dsobrante" className={`flex-1 flex justify-center py-2 ${isActiveMobile("/registro/dsobrante")}`}>
               💵  
             </Link>
-            <Link title="PRODUCTOS" href="/registro/productos" className={`flex-1 flex justify-center py-2 ${isActiveMobile("/registro/productos")}`}>
+            <Link title="PRODUCTOS" href="/dashboard/productos" className={`flex-1 flex justify-center py-2 ${isActiveMobile("/registro/productos")}`}>
               🥨
             </Link>
-            <Link title="PROVEEDORES" href="/registro/proveedores" className={`flex-1 flex justify-center py-2 ${isActiveMobile("/registro/proveedores")}`}>
-              🚚
-            </Link>
-            <Link title="VENCIMIENTOS" href="/registro/vencimientos" className={`flex-1 flex justify-center py-2 ${isActiveMobile("/registro/vencimientos")}`}>
+            <Link title="VENCIMIENTOS" href="/dashboard/vencimientos" className={`flex-1 flex justify-center py-2 ${isActiveMobile("/registro/vencimientos")}`}>
               📅  
             </Link>
-            <Link title="HORARIOS" href="/registro/horarios" className={`flex-1 flex justify-center py-2 ${isActiveMobile("/registro/horarios")}`}>
+            <Link title="PROVEEDORES" href="/dashboard/proveedores/pedidos" className={`flex-1 flex justify-center py-2 ${isActiveMobile("/registro/proveedores")}`}>
+              🚚
+            </Link>
+            <Link title="HORARIOS" href="/dashboard/horarios" className={`flex-1 flex justify-center py-2 ${isActiveMobile("/registro/horarios")}`}>
               🕰️ 
             </Link>
             <button onClick={() => setShowMobileMenu(!showMobileMenu)} className="flex-1 flex justify-center py-2"><svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
@@ -147,12 +147,13 @@ useEffect(() => {
           <div className="fixed inset-0 bg-slate-900/60 z-50 md:hidden" onClick={() => setShowMobileMenu(false)}>
             <div className="absolute right-0 w-72 h-full bg-white p-5 flex flex-col justify-between">
               <nav className="flex flex-col gap-2">
-                <Link href="/registro/envases" className="p-3 bg-slate-50 rounded-xl text-xs font-bold">🍾 Control Envases</Link>
-                <Link href="/registro/dsobrante" className="p-3 bg-slate-50 rounded-xl text-xs font-bold">💵 Dinero Sobrante</Link>
-                <Link href="/registro/productos" className="p-3 bg-slate-50 rounded-xl text-xs font-bold">🥨 Productos FYS</Link>
-                <Link href="/registro/proveedores" className="p-3 bg-slate-50 rounded-xl text-xs font-bold">🚚 Proveedores</Link>
-                <Link href="/registro/vencimientos" className="p-3 bg-slate-50 rounded-xl text-xs font-bold">📅 Vencimientos</Link>
-                <Link href="/registro/horarios" className="p-3 bg-slate-50 rounded-xl text-xs font-bold">🕰️ Horarios</Link>
+                <Link href="/dashboard/envases" className="p-3 bg-slate-50 rounded-xl text-xs font-bold">🍾 Control Envases</Link>
+                <Link href="/dashboard/dsobrante" className="p-3 bg-slate-50 rounded-xl text-xs font-bold">💵 Dinero Sobrante</Link>
+                <Link href="/dashboard/productos" className="p-3 bg-slate-50 rounded-xl text-xs font-bold">🥨 Productos FYS</Link>
+                <Link href="/dashboard/vencimientos" className="p-3 bg-slate-50 rounded-xl text-xs font-bold">📅 Vencimientos</Link>
+                <Link href="/dashboard/proveedores/pedidos" className="p-3 bg-slate-50 rounded-xl text-xs font-bold">🚚 Pedidos</Link>
+                <Link href="/dashboard/proveedores" className="p-3 bg-slate-50 rounded-xl text-xs font-bold">🚚 Proveedores Admin</Link>
+                <Link href="/dashboard/horarios" className="p-3 bg-slate-50 rounded-xl text-xs font-bold">🕰️ Horarios Admin</Link>
 
               </nav>
               <button onClick={() => { localStorage.removeItem("auth"); router.push("/login"); }} className="w-full bg-slate-900 text-white py-3 rounded-xl text-xs font-black">Cerrar Sesión 🚪</button>

@@ -179,7 +179,7 @@ function ProveedoresContent() {
 
   {/* NUEVO BOTÓN A LA DERECHA */}
   <a
-    href="../registro/proveedores"
+    href="/dashboard/proveedores/pedidos/"
     target="_blank"
     rel="noopener noreferrer"
     className="px-5 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-indigo-700 transition-all shadow-sm"
