@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../lib/supabase";
 
 // Configuraciones predeterminadas para evitar digitar
@@ -26,7 +26,7 @@ export default function AdminCalendarioHorarios() {
   
   // Formulario del Modal
   const [trabajadorSel, setTrabajadorSel] = useState("");
-  const [esDescansoDia, setEsDescansoDia] = useState(false); // NUEVO ESTADO CONTROLA EL DESCANSO
+  const [esDescansoDia, setEsDescansoDia] = useState(false);
   const [tipoTurno, setTipoTurno] = useState<"MAÑANA"|"MEDIO"|"NOCHE">("MAÑANA");
   const [horaInicio, setHoraInicio] = useState(TURNOS_PREDEF["MAÑANA"].inicio);
   const [horaFin, setHoraFin] = useState(TURNOS_PREDEF["MAÑANA"].fin);
@@ -36,6 +36,10 @@ export default function AdminCalendarioHorarios() {
   // Opción Experta: Automatización
   const [automatizarSemana, setAutomatizarSemana] = useState(false);
   const [diasDescansoSel, setDiasDescansoSel] = useState<string[]>([]);
+
+  // NUEVO: Referencia para el scroll y estado para resaltar trabajador
+  const hoyRef = useRef<HTMLDivElement>(null);
+  const [trabajadorResaltado, setTrabajadorResaltado] = useState<number | null>(null);
 
   // Obtener la fecha de hoy en formato local YYYY-MM-DD para las comparaciones
   const t = new Date();
@@ -65,7 +69,17 @@ export default function AdminCalendarioHorarios() {
   const primerDiaSemana = new Date(anio, mes, 1).getDay();
   const celdasVacias = primerDiaSemana === 0 ? 6 : primerDiaSemana - 1; 
 
-  // --- LÓGICA DE MODALES ---
+  // --- LÓGICA DE INTERACCIÓN ---
+
+  const seleccionarTrabajadorYScroll = (id: number) => {
+    // Si ya está seleccionado, lo deselecciona, sino lo resalta
+    setTrabajadorResaltado(prev => prev === id ? null : id);
+    
+    // Hace scroll suave hacia el día de hoy
+    setTimeout(() => {
+      hoyRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 150);
+  };
 
   const abrirModalNuevo = (dia: number) => {
     const fechaFormat = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
@@ -77,7 +91,8 @@ export default function AdminCalendarioHorarios() {
 
     setDiaSeleccionado(dia);
     setTurnoAEditar(null);
-    setTrabajadorSel("");
+    // Si hay un trabajador resaltado, lo preseleccionamos en el modal
+    setTrabajadorSel(trabajadorResaltado ? trabajadorResaltado.toString() : "");
     setEsDescansoDia(false);
     manejarCambioTurno("MAÑANA");
     setNotaProveedor("");
@@ -101,7 +116,6 @@ export default function AdminCalendarioHorarios() {
     setTrabajadorSel(turno.trabajador_id.toString());
     setNotaProveedor(turno.nota_proveedor || "");
 
-    // Si es un descanso, activamos el check y preparamos un turno por defecto por si lo desmarca
     if (turno.tipo_turno === "DESCANSO") {
       setEsDescansoDia(true);
       setMotivoDescanso(turno.motivo_descanso || "REGULAR");
@@ -261,40 +275,55 @@ export default function AdminCalendarioHorarios() {
             });
 
             const esPasado = fechaFormat < hoyStr;
+            const esHoy = fechaFormat === hoyStr;
 
             return (
               <div 
-                key={dia} 
+                key={dia}
+                ref={esHoy ? hoyRef : null} 
                 onClick={() => abrirModalNuevo(dia)}
-                className={`min-h-[120px] p-2 border-r border-b border-slate-200 transition flex flex-col relative ${
+                className={`min-h-[120px] p-2 border-r border-b transition-all duration-300 flex flex-col relative group ${
                   esPasado 
-                    ? "bg-slate-50/70 cursor-not-allowed select-none" 
-                    : "hover:bg-indigo-50 cursor-pointer group"
+                    ? "bg-slate-100/60 opacity-60 grayscale cursor-not-allowed select-none border-slate-200" 
+                    : esHoy
+                    ? "bg-green-50 border-2 border-green-500 shadow-[inset_0_0_20px_rgba(34,197,94,0.15)] cursor-pointer z-10"
+                    : "border-slate-200 hover:bg-indigo-50 cursor-pointer"
                 }`}
               >
                 <div className="flex justify-between items-center">
-                  <span className={`text-sm font-bold ${esPasado ? 'text-slate-300' : 'text-slate-400 group-hover:text-indigo-600'}`}>{dia}</span>
-                  {fechaFormat === hoyStr && <span className="bg-indigo-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter shadow-sm">Hoy</span>}
+                  <span className={`text-sm font-bold ${esPasado ? 'text-slate-400' : 'text-slate-500 group-hover:text-indigo-600'}`}>{dia}</span>
+                  {esHoy && (
+                    <span className="bg-green-500 text-white text-[9px] font-black px-2 py-1 rounded-full uppercase tracking-tighter shadow-md animate-bounce">
+                      Hoy
+                    </span>
+                  )}
                 </div>
                 
                 <div className="mt-1 flex flex-col gap-1 flex-1">
-                  {horariosDelDia.map(h => (
-                    <div 
-                      key={h.id} 
-                      onClick={(e) => abrirModalEditar(dia, h, e)}
-                      className={`text-[11px] p-1.5 rounded font-bold truncate transition shadow-sm flex justify-between items-center ${
-                        esPasado ? 'opacity-60 grayscale-[30%] cursor-not-allowed' : 'hover:opacity-75 hover:scale-[1.02]'
-                      } ${
-                        h.tipo_turno === 'MAÑANA' ? 'bg-sky-100 text-sky-800' :
-                        h.tipo_turno === 'MEDIO' ? 'bg-emerald-100 text-emerald-800' :
-                        h.tipo_turno === 'NOCHE' ? 'bg-indigo-100 text-indigo-800' :
-                        'bg-amber-100 text-amber-800'
-                      }`}
-                    >
-                      <span>{h.trabajadores?.nombre.split(' ')[0]} - {h.tipo_turno === 'DESCANSO' ? 'DESC' : h.hora_inicio?.slice(0,5)}</span>
-                      {h.nota_proveedor && <span title="Nota de Proveedor">🚚</span>}
-                    </div>
-                  ))}
+                  {horariosDelDia.map(h => {
+                    const esResaltado = trabajadorResaltado === h.trabajador_id;
+                    const opacarNoResaltado = trabajadorResaltado !== null && !esResaltado;
+
+                    return (
+                      <div 
+                        key={h.id} 
+                        onClick={(e) => abrirModalEditar(dia, h, e)}
+                        className={`text-[11px] p-1.5 rounded font-bold truncate transition-all shadow-sm flex justify-between items-center ${
+                          esPasado ? 'cursor-not-allowed' : 'hover:scale-[1.02]'
+                        } ${opacarNoResaltado ? 'opacity-20 grayscale' : 'opacity-100'} ${
+                          esResaltado && !esPasado ? 'ring-2 ring-indigo-500 scale-105 z-20 shadow-md' : ''
+                        } ${
+                          h.tipo_turno === 'MAÑANA' ? 'bg-sky-100 text-sky-800' :
+                          h.tipo_turno === 'MEDIO' ? 'bg-emerald-100 text-emerald-800' :
+                          h.tipo_turno === 'NOCHE' ? 'bg-indigo-100 text-indigo-800' :
+                          'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        <span>{h.trabajadores?.nombre.split(' ')[0]} - {h.tipo_turno === 'DESCANSO' ? 'DESC' : h.hora_inicio?.slice(0,5)}</span>
+                        {h.nota_proveedor && <span title="Nota de Proveedor">🚚</span>}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -304,12 +333,19 @@ export default function AdminCalendarioHorarios() {
 
       {/* RESUMEN DE QUINCENAS */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-        <h2 className="text-lg font-black uppercase text-slate-800 mb-4 border-b pb-2">📊 Resumen de Días Trabajados</h2>
+        <h2 className="text-lg font-black uppercase text-slate-800 mb-4 border-b pb-2 flex justify-between items-center">
+          <span>📊 Resumen de Días Trabajados</span>
+          {trabajadorResaltado && (
+            <span className="text-xs text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full font-bold">
+              Filtro Activo (Clic de nuevo para limpiar)
+            </span>
+          )}
+        </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="bg-slate-50 text-slate-500 uppercase tracking-widest text-[10px]">
-                <th className="p-3 rounded-tl-lg">Trabajador</th>
+                <th className="p-3 rounded-tl-lg">Trabajador (Clic para ubicar)</th>
                 <th className="p-3 text-center">1ra Quincena (1 - 15)</th>
                 <th className="p-3 text-center">2da Quincena (16 - {diasDelMes})</th>
                 <th className="p-3 text-center bg-indigo-50 rounded-tr-lg text-indigo-700">Total Mes</th>
@@ -321,10 +357,23 @@ export default function AdminCalendarioHorarios() {
                 const diasQ1 = turnosTrabajador.filter(h => parseInt(h.fecha.split('-')[2]) <= 15).length;
                 const diasQ2 = turnosTrabajador.filter(h => parseInt(h.fecha.split('-')[2]) >= 16).length;
                 const total = diasQ1 + diasQ2;
+                
+                const esElResaltado = trabajadorResaltado === t.id;
 
                 return (
-                  <tr key={t.id} className="hover:bg-slate-50 transition">
-                    <td className="p-3 font-bold text-slate-800 uppercase">{t.nombre}</td>
+                  <tr 
+                    key={t.id} 
+                    onClick={() => seleccionarTrabajadorYScroll(t.id)}
+                    className={`transition-colors cursor-pointer ${
+                      esElResaltado 
+                        ? 'bg-indigo-100 border-l-4 border-indigo-600' 
+                        : 'hover:bg-slate-50 border-l-4 border-transparent'
+                    }`}
+                    title="Clic para resaltar sus turnos y navegar al día de hoy"
+                  >
+                    <td className="p-3 font-bold text-slate-800 uppercase flex items-center gap-2">
+                      {t.nombre}
+                    </td>
                     <td className="p-3 text-center font-bold text-emerald-600">{diasQ1} días</td>
                     <td className="p-3 text-center font-bold text-sky-600">{diasQ2} días</td>
                     <td className="p-3 text-center font-black text-indigo-700 bg-indigo-50/50">{total} días</td>

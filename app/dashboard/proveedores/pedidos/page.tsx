@@ -275,16 +275,19 @@ const abrirPDFSimulado = (items: PedidoGuardadoDB[]) => {
         .from("pedidos")
         .update({ 
           producto: editProducto.toUpperCase().trim(),
-          text_cantidad: `${editCantidad} ${editFormato}`, // Ajustado por si usas un campo específico en DB, o 'cantidad' estándar:
+          // Se eliminó 'text_cantidad' ya que si no existe en la BD causará un error
           cantidad: `${editCantidad} ${editFormato}`,
           precio: editPrecio ? parseFloat(editPrecio) : null
         })
         .eq("id", pedidoAEditar.id);
+        
       if (error) throw error;
+      
       setPedidoAEditar(null);
       await cargarPedidosDesdeBD();
     } catch (err) {
-      console.error(err);
+      // Imprimir el error exacto de Supabase ayuda muchísimo a depurar
+      console.error("Error al actualizar en Supabase:", err);
       alert("No se pudo actualizar el registro.");
     }
   };
