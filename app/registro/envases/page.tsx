@@ -27,9 +27,9 @@ export default function EnvasesRegistroPage() {
       return "Catherine"; 
     } else {
       if (dia === 0 || dia === 6) {
-        return "Axel"; 
+        return "Nicol"; 
       } else {
-        return "María"; 
+        return "Axel"; 
       }
     }
   };
