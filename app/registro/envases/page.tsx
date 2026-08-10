@@ -304,7 +304,7 @@ export default function EnvasesRegistroPage() {
                   className="text-[10px] font-black uppercase tracking-wider bg-transparent text-slate-600 outline-none cursor-pointer appearance-none text-right"
                 >
                   <option value="Catherine">Catherine</option>
-                  <option value="Axel">Axel</option>
+                  <option value="Nicol">Nicol</option>
                   <option value="Axel">Axel</option>
                 </select>
                 <svg className="w-3 h-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
