@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { supabase } from "../../lib/supabase";
+import { supabase } from "../lib/supabase";
 
 export default function EnvasesRegistroPage() {
   const [registros, setRegistros] = useState<any[]>([]);
