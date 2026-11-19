@@ -646,6 +646,9 @@ const abrirPDFSimulado = (items: PedidoGuardadoDB[]) => {
                   >
                     <option value="UNIDADES">UNIDADES</option>
                     <option value="PAQUETES">PAQUETES</option>
+                    <option value="PAQUETES">DISPLAY</option>
+                    <option value="PAQUETES">TIRAS</option>
+                    <option value="PAQUETES">SACOS</option>
                     <option value="CAJETILLAS">CAJETILLAS</option>
                     <option value="CAJA">CAJA</option>
                   </select>
